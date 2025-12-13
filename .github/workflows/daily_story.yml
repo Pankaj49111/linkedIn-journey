@@ -1,15 +1,9 @@
 name: Scheduled LinkedIn Story
 on:
   schedule:
-    # 1. PUBLISH TIME: Mon, Wed, Fri at 9:00 AM IST (03:30 UTC)
-    # Cron format: Minute Hour Day Month DayOfWeek (1=Mon, 3=Wed, 5=Fri)
     - cron: '30 3 * * 1,3,5'
-    
-    # 2. DRAFT TIME: Sun, Tue, Thu at 6:00 PM IST (12:30 UTC)
-    # Cron format: Minute Hour Day Month DayOfWeek (0=Sun, 2=Tue, 4=Thu)
     - cron: '30 12 * * 0,2,4'
-    
-  workflow_dispatch: # Allows manual run button at any time
+  workflow_dispatch:
     inputs:
       mode:
         description: 'Run mode'
@@ -38,22 +32,15 @@ jobs:
       - name: Install dependencies
         run: pip install requests google-generativeai
 
-      # LOGIC SWITCH
-      # Checks the current hour to decide if we are Drafting or Publishing
       - name: Set Mode Variable
         id: set_mode
         run: |
           CURRENT_HOUR=$(date +%H)
-          
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
              echo "MODE=${{ inputs.mode }}" >> $GITHUB_ENV
-             
           elif [ $CURRENT_HOUR -lt 10 ]; then
-             # It is 03:30 UTC (Morning) -> Time to PUBLISH
              echo "MODE=publish" >> $GITHUB_ENV
-             
           else
-             # It is 12:30 UTC (Evening) -> Time to DRAFT
              echo "MODE=draft" >> $GITHUB_ENV
           fi
 
@@ -63,13 +50,11 @@ jobs:
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
         run: python main_bot.py --mode ${{ env.MODE }}
 
-      # COMMIT CHANGES
       - name: Commit & Push Changes
         run: |
           git config --global user.name "StoryBot"
           git config --global user.email "bot@noreply.github.com"
           git pull
-          # Add draft, images, and state file (if changed)
           git add story_state.json current_draft.json images/
           git commit -m "Bot: Processed ${{ env.MODE }} mode [skip ci]" || exit 0
           git push
