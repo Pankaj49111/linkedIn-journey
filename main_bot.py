@@ -13,6 +13,9 @@ STATE_FILE = "story_state.json"
 DRAFT_FILE = "current_draft.json"
 IMAGE_FOLDER = "images"
 
+# API VERSION CONFIG (UPDATED)
+LINKEDIN_API_VERSION = "202411"  # Updated from 202401 to 202411
+
 ACTS = [
     {"name": "ACT I – Foundations & Early Confidence", "max_episodes": 6},
     {"name": "ACT II – Scale Pain & Architectural Stress", "max_episodes": 8},
@@ -43,14 +46,11 @@ def run_draft_mode():
     if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
     genai.configure(api_key=GEMINI_KEY)
-    # Using the stable model
     model = genai.GenerativeModel("gemini-flash-latest")
     
     act = ACTS[state["act_index"]]
-    # Flatten previous lessons into a simple string context
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # --- THE RESTORED, DETAILED PROMPT ---
     prompt = f"""
     Role: You are a Senior Backend Engineer sharing a raw, authentic story on LinkedIn.
     
@@ -139,7 +139,7 @@ def run_publish_mode():
         print("❌ Final Post Failed.")
         exit(1)
 
-# --- LINKEDIN UTILS (DEBUG ENABLED) ---
+# --- LINKEDIN UTILS (FIXED VERSION HEADER) ---
 def get_user_urn():
     try:
         url = "https://api.linkedin.com/v2/userinfo"
@@ -155,12 +155,11 @@ def get_user_urn():
 
 def upload_image_to_linkedin(urn, image_path):
     print("Uploading image...")
-    # 1. Initialize
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
     headers = {
         'Authorization': f'Bearer {LINKEDIN_TOKEN}',
         'Content-Type': 'application/json',
-        'LinkedIn-Version': '202401',
+        'LinkedIn-Version': LINKEDIN_API_VERSION, # <--- FIXED
         'X-Restli-Protocol-Version': '2.0.0'
     }
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
@@ -175,7 +174,6 @@ def upload_image_to_linkedin(urn, image_path):
         upload_url = data['uploadUrl']
         image_urn = data['image']
         
-        # 2. Upload Bytes
         with open(image_path, 'rb') as f:
             put_resp = requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f)
             if put_resp.status_code not in [200, 201]:
@@ -193,7 +191,7 @@ def post_to_linkedin(urn, text, image_asset=None):
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
         "Content-Type": "application/json",
         "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": "202401"
+        "LinkedIn-Version": LINKEDIN_API_VERSION # <--- FIXED
     }
     payload = {
         "author": f"urn:li:person:{urn}",
