@@ -1,5 +1,7 @@
 {
   "act_index": 0,
-  "episode": 1,
-  "previous_lessons": []
+  "episode": 2,
+  "previous_lessons": [
+    "Fidelity to perceived modern complexity (polyglot persistence, Kafka/Cassandra) over actual requirement led to operational disaster. Boring, reliable tech (Java, Spring Boot, Postgres/Hibernate) is often the mature solution."
+  ]
 }
