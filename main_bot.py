@@ -5,8 +5,9 @@ import requests
 import google.generativeai as genai
 import sys
 import time
+import urllib.parse # <--- Added for fixing the 400 Error
 
-# Force UTF-8 for logs to prevent crashes with emojis/unicode
+# Force UTF-8 for logs
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
@@ -28,33 +29,27 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 5},
 ]
 
-
 # --- HELPERS ---
 def load_json(filename):
-    if not os.path.exists(filename):
-        return None
+    if not os.path.exists(filename): return None
     try:
         with open(filename, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading {filename}: {e}")
+        print(f"❌ Error loading {filename}: {e}")
         return None
-
 
 def save_json(filename, data):
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-
 def get_image_from_folder():
-    if not os.path.exists(IMAGE_FOLDER):
-        return None
+    if not os.path.exists(IMAGE_FOLDER): return None
     valid_extensions = ('.png', '.jpg', '.jpeg', '.gif')
     for file in os.listdir(IMAGE_FOLDER):
         if file.lower().endswith(valid_extensions):
             return os.path.join(IMAGE_FOLDER, file)
     return None
-
 
 # --- LINKEDIN UTILS ---
 def get_user_urn():
@@ -63,21 +58,14 @@ def get_user_urn():
         headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}"}
         resp = requests.get(url, headers=headers)
         if resp.status_code != 200:
-            print(f"User Info Error: {resp.status_code} - {resp.text}")
+            print(f"❌ User Info Error: {resp.status_code} - {resp.text}")
             return None
         return resp.json().get("sub")
     except Exception as e:
-        print(f"User Info Exception: {e}")
+        print(f"❌ User Info Exception: {e}")
         return None
 
-
 def upload_image_to_linkedin(urn, image_path):
-    """
-    Initializes the image upload, PUTs the binary and returns:
-    (image_urn, image_id) on success, or (None, None) on failure.
-    image_urn example: urn:li:image:ABC123
-    image_id example: ABC123
-    """
     print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
     headers = {
@@ -89,51 +77,44 @@ def upload_image_to_linkedin(urn, image_path):
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
 
     try:
+        # 1. Initialize
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
         if resp.status_code not in (200, 201):
-            print(f"Init Upload Error: {resp.status_code} - {resp.text}")
-            return None, None
+            print(f"❌ Init Upload Error: {resp.status_code} - {resp.text}")
+            return None
 
         data = resp.json().get('value') or resp.json()
         upload_url = data.get('uploadUrl')
-        image_urn = data.get('image') or data.get('imageUrn')  # defensive keys
+        image_urn = data.get('image') or data.get('imageUrn')
 
         if not upload_url or not image_urn:
-            print(f"Init Upload missing fields: {data}")
-            return None, None
+            return None
 
-        # PUT binary
+        # 2. Upload Bytes
         with open(image_path, 'rb') as f:
-            put_resp = requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f,
-                                    timeout=60)
+            put_resp = requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
             if put_resp.status_code not in (200, 201):
-                print(f"Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
-                return None, None
+                print(f"❌ Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
+                return None
 
-        # Extract id portion from urn if possible
-        image_id = None
-        try:
-            # urn:li:image:ABC123  -> ABC123
-            image_id = image_urn.split(":")[-1]
-        except Exception:
-            image_id = None
+        # We return the full URN. We do NOT split it.
+        # The API needs the full URN for polling.
+        return image_urn
 
-        return image_urn, image_id
     except Exception as e:
-        print(f"Upload Exception: {e}")
-        return None, None
+        print(f"❌ Upload Exception: {e}")
+        return None
 
+def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
+    """Checks if image is processed and ready to post."""
+    if not image_urn: return False
 
-def poll_image_status(image_id, timeout_seconds=60, poll_interval=2):
-    """
-    Polls the LinkedIn images API until the image asset is available or timeout.
-    Returns True if AVAILABLE, False otherwise.
-    """
-    if not image_id:
-        print("No image_id provided to poll.")
-        return False
+    # FIX for 400 Error: URL Encode the URN (urn:li:image:123 -> urn%3Ali%3Aimage%3A123)
+    encoded_urn = urllib.parse.quote(image_urn)
+    url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
 
-    url = f"https://api.linkedin.com/rest/images/{image_id}"
+    print(f"⏳ Polling image status for URN: {image_urn}...")
+
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
         "LinkedIn-Version": LINKEDIN_API_VERSION,
@@ -145,41 +126,29 @@ def poll_image_status(image_id, timeout_seconds=60, poll_interval=2):
         try:
             resp = requests.get(url, headers=headers, timeout=15)
             if resp.status_code == 200:
-                body = resp.json()
-                # Defensive checks for various possible fields
+                data = resp.json()
                 status = None
-                # common shapes: { "value": { "status": "AVAILABLE" } } or { "processingState": "AVAILABLE" } or { "status": "AVAILABLE" }
-                if isinstance(body, dict):
-                    # check nested 'value'
-                    if "value" in body and isinstance(body["value"], dict):
-                        status = body["value"].get("status") or body["value"].get("processingState")
-                    # top-level
-                    status = status or body.get("status") or body.get("processingState")
-                if status:
-                    status_upper = str(status).upper()
-                    print(f"Image status: {status_upper}")
-                    if status_upper in ("AVAILABLE", "SUCCEEDED"):
-                        return True
-                    if status_upper in ("FAILED", "ERROR"):
-                        return False
+                if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
+                else: status = data.get("status") or data.get("processingState")
+
+                if status == "AVAILABLE":
+                    print("✅ Image is AVAILABLE.")
+                    return True
+                elif status in ["FAILED", "ERROR"]:
+                    print(f"❌ Image processing failed: {status}")
+                    return False
             else:
-                # 404 or other codes are possible while processing
-                print(f"Polling: received {resp.status_code}. Waiting...")
+                # Often returns 404 while processing initially
+                pass
+            time.sleep(poll_interval)
         except Exception as e:
-            print(f"Polling exception: {e}")
+            print(f"Polling warning: {e}")
+            time.sleep(poll_interval)
 
-        time.sleep(poll_interval)
-
-    print("Polling timed out waiting for image to become AVAILABLE.")
+    print("❌ Polling timed out.")
     return False
 
-
 def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
-    """
-    Posts to LinkedIn. If image_asset is provided, attaches it.
-    Retries on 5xx errors.
-    Returns True on success, False on permanent failure.
-    """
     url = "https://api.linkedin.com/rest/posts"
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -188,16 +157,16 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # Defensive trim (LinkedIn soft limit)
+    # Defensive trim
     MAX_LEN = 2800
     text = text.strip()
     if len(text) > MAX_LEN:
-        print(f"Text length {len(text)} exceeds limit. Trimming.")
         text = text[:MAX_LEN - 3] + "..."
 
+    # --- PAYLOAD CONSTRUCTION (FIXED 500 ERROR) ---
     payload = {
         "author": f"urn:li:person:{urn}",
-        "commentary": {"text": text},
+        "commentary": text,  # <--- FIXED: Must be a direct string
         "visibility": "PUBLIC",
         "distribution": {
             "feedDistribution": "MAIN_FEED",
@@ -209,44 +178,40 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
     }
 
     if image_asset:
-        # Use media as a list for compatibility; single image still uses a one-item list.
         payload["content"] = {
-            "media": [
-                {
-                    "id": image_asset,
-                    "title": "Tech Insight"
-                }
-            ]
+            "media": {
+                "title": "Tech Insight",
+                "id": image_asset # Single object, not a list
+            }
         }
 
+    # Retry Logic
     attempt = 0
     while attempt <= max_retries:
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=30)
             if resp.status_code == 201:
                 return True
-            # On 4xx, return failure immediately (bad request/auth)
+
             if 400 <= resp.status_code < 500:
-                print(f"Post Creation Error: {resp.status_code} - {resp.text}")
+                print(f"❌ Post Rejected ({resp.status_code}): {resp.text}")
                 return False
-            # On server error, retry
-            print(f"Post attempt {attempt + 1} returned {resp.status_code}. Body: {resp.text}")
+
+            print(f"⚠️ Server Error ({resp.status_code}), retrying...")
+
         except Exception as e:
-            print(f"Exception posting to LinkedIn: {e}")
+            print(f"⚠️ Network Exception: {e}")
 
         attempt += 1
-        time.sleep(2 ** attempt)  # exponential backoff
+        time.sleep(2 ** attempt)
 
-    print("Exceeded max retries posting to LinkedIn.")
     return False
-
 
 # --- CORE LOGIC ---
 def run_draft_mode():
-    print("STARTING DRAFT MODE...")
+    print("🌅 STARTING DRAFT MODE...")
     state = load_json(STATE_FILE)
-    if not state:
-        state = {"act_index": 0, "episode": 1, "previous_lessons": []}
+    if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel("gemini-flash-latest")
@@ -255,129 +220,97 @@ def run_draft_mode():
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
     prompt = f"""
-Role: You are a Senior Backend Engineer sharing a raw, authentic story on LinkedIn.
-
-Current Life Stage: {act['name']} (Episode {state['episode']})
-Context (What you already learned): {previous_lessons}
-
-STRICT TECH STACK (WHITELIST):
-- Languages: Java 17 or Java 21 ONLY.
-- Frameworks: Spring Boot, Hibernate.
-- Data: PostgreSQL (SQL), Cassandra (NoSQL), Redis (Cache).
-- Async/Ops: Kafka, Docker, Kubernetes (K8s).
-- DO NOT mention: Python, Node.js, Mongo, or AWS Lambda.
-
-STRICT FORMATTING RULES:
-1. DO NOT start with "Act I" or "Episode X". Start directly with the hook.
-2. Tone: Casual, slightly cynical but smart. "Thinking out loud."
-3. Structure (Strictly follow these line breaks):
-   - The Hook & The Meat: The story (1 solid paragraph). Start in the middle of the problem.
-   - [INSERT 2 BLANK LINES HERE]
-   - The Ending: "Moral of the story:" followed by a quirky, sarcastic, or witty one-liner.
-   - [INSERT 2 BLANK LINES HERE]
-   - The Footer: Exactly these hashtags: #backend #engineering #software #java
-
-Length: Under 180 words.
-
-Output JSON format: {{ "post_text": "...", "lesson_extracted": "..." }}
-"""
+    Role: You are a Senior Backend Engineer sharing a raw, authentic story on LinkedIn.
+    
+    Current Life Stage: {act['name']} (Episode {state['episode']})
+    Context: {previous_lessons}
+    
+    STRICT TECH STACK: Java 17/21, Spring Boot, Hibernate, Postgres, Cassandra, Redis, Kafka, Docker, K8s.
+    
+    STRICT FORMATTING:
+    1. Hook -> Story -> (2 Blank Lines) -> Moral -> (2 Blank Lines) -> Hashtags.
+    2. Tone: Casual, cynical, smart.
+    3. Hashtags: #backend #engineering #software #java
+    
+    OUTPUT JSON: {{ "post_text": "...", "lesson_extracted": "..." }}
+    """
 
     try:
         response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
         content = json.loads(response.text)
         save_json(DRAFT_FILE, content)
-        print(f"Draft saved to {DRAFT_FILE}.")
-        print("PREVIEW:")
-        print(content["post_text"][:200] + "...")
+        print(f"✅ Draft saved to {DRAFT_FILE}.")
+        print("🔍 PREVIEW:")
+        print(content["post_text"][:100] + "...")
     except Exception as e:
-        print(f"Generation Failed: {e}")
+        print(f"❌ Generation Failed: {e}")
         exit(1)
 
-
 def run_publish_mode():
-    print("STARTING PUBLISH MODE...")
+    print("🚀 STARTING PUBLISH MODE...")
     draft = load_json(DRAFT_FILE)
     if not draft:
-        print("No draft found! Skipping publish.")
+        print("⚠️ No draft found! Skipping.")
         exit(0)
 
-    print("\nCONTENT TO POST:")
+    print("\n📝 CONTENT TO POST:")
     print("-" * 20)
     print(draft["post_text"])
     print("-" * 20 + "\n")
 
     image_path = get_image_from_folder()
-    if image_path:
-        print(f"Found user image: {image_path}")
-    else:
-        print("No image found. Posting text only.")
+    if image_path: print(f"📸 Found image: {image_path}")
+    else: print("📝 No image found. Text only.")
 
     urn = get_user_urn()
     if not urn:
-        print("CRITICAL: Could not get User URN. Check LinkedIn Token.")
+        print("❌ CRITICAL: Invalid Token.")
         exit(1)
 
     media_urn = None
-    media_id = None
 
+    # Image Upload & Polling
     if image_path:
-        media_urn, media_id = upload_image_to_linkedin(urn, image_path)
-        if not media_urn:
-            print("Image upload failed. Proceeding with text-only post.")
-        else:
-            # Poll until available
-            available = poll_image_status(media_id, timeout_seconds=60, poll_interval=2)
-            if not available:
-                print("Image never became AVAILABLE. Proceeding with text-only post.")
-                # Optionally: keep the uploaded image (do not remove), but post text-only
+        media_urn = upload_image_to_linkedin(urn, image_path)
+        if media_urn:
+            is_ready = poll_image_status(media_urn) # Pass the full URN
+            if not is_ready:
+                print("⚠️ Image not ready. Posting TEXT ONLY.")
                 media_urn = None
+        else:
+            print("⚠️ Upload failed. Posting TEXT ONLY.")
 
-    # Attempt to post (with image_urn if available)
-    success = post_to_linkedin(urn, draft["post_text"], image_asset=media_urn)
+    # Post
+    success = post_to_linkedin(urn, draft["post_text"], media_urn)
 
     if success:
-        print("Published successfully.")
+        print("✅ Published successfully!")
 
         state = load_json(STATE_FILE)
-        if not state:
-            state = {"act_index": 0, "episode": 1, "previous_lessons": []}
+        if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
-        state["previous_lessons"].append(draft.get("lesson_extracted", ""))
+        state["previous_lessons"].append(draft["lesson_extracted"])
         state["episode"] += 1
 
         current_act = ACTS[state["act_index"]]
         if state["episode"] > current_act["max_episodes"]:
             state["act_index"] += 1
             state["episode"] = 1
-            if state["act_index"] >= len(ACTS):
-                state["act_index"] = 0
+            if state["act_index"] >= len(ACTS): state["act_index"] = 0
 
         save_json(STATE_FILE, state)
 
-        try:
-            os.remove(DRAFT_FILE)
-        except Exception:
-            pass
-
-        # If image was used and exists in folder, remove it
-        if image_path and media_urn:
-            try:
-                os.remove(image_path)
-            except Exception:
-                pass
-
-        print("Cleanup complete.")
+        os.remove(DRAFT_FILE)
+        if image_path: os.remove(image_path)
+        print("🧹 Cleanup complete.")
     else:
-        print("Final Post Failed.")
+        print("❌ Final Post Failed.")
         exit(1)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["draft", "publish"], required=True)
     args = parser.parse_args()
 
-    if args.mode == "draft":
-        run_draft_mode()
-    elif args.mode == "publish":
-        run_publish_mode()
+    if args.mode == "draft": run_draft_mode()
+    elif args.mode == "publish": run_publish_mode()
