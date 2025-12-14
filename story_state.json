@@ -1,6 +1,7 @@
 {
   "act_index": 0,
-  "episode": 1,
+  "episode": 2,
   "previous_lessons": [
+    "Premature optimization is the root of all evil, but premature optimization using native SQL is the root of all *stale* evil."
   ]
 }
