@@ -3,6 +3,10 @@ import json
 import argparse
 import requests
 import google.generativeai as genai
+import sys
+
+# Force UTF-8 for logs to prevent crashes with emojis
+sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -13,8 +17,8 @@ STATE_FILE = "story_state.json"
 DRAFT_FILE = "current_draft.json"
 IMAGE_FOLDER = "images"
 
-# API VERSION CONFIG (UPDATED)
-LINKEDIN_API_VERSION = "202411"  # Updated from 202401 to 202411
+# API VERSION CONFIG
+LINKEDIN_API_VERSION = "202411"
 
 ACTS = [
     {"name": "ACT I – Foundations & Early Confidence", "max_episodes": 6},
@@ -23,13 +27,19 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 5},
 ]
 
-# --- HELPERS ---
+# --- HELPERS (Now with UTF-8 Enforcement) ---
 def load_json(filename):
     if not os.path.exists(filename): return None
-    with open(filename, "r") as f: return json.load(f)
+    try:
+        with open(filename, "r", encoding="utf-8") as f: 
+            return json.load(f)
+    except Exception as e:
+        print(f"❌ Error loading {filename}: {e}")
+        return None
 
 def save_json(filename, data):
-    with open(filename, "w") as f: json.dump(data, f, indent=2)
+    with open(filename, "w", encoding="utf-8") as f: 
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 def get_image_from_folder():
     if not os.path.exists(IMAGE_FOLDER): return None
@@ -84,6 +94,8 @@ def run_draft_mode():
         content = json.loads(response.text)
         save_json(DRAFT_FILE, content)
         print(f"✅ Draft saved to {DRAFT_FILE}.")
+        print("🔍 PREVIEW:")
+        print(content["post_text"][:100] + "...")
     except Exception as e:
         print(f"❌ Generation Failed: {e}")
         exit(1)
@@ -94,6 +106,12 @@ def run_publish_mode():
     if not draft:
         print("⚠️ No draft found! Skipping publish.")
         exit(0)
+
+    # --- DEBUG PRINT: What are we actually posting? ---
+    print("\n📝 CONTENT TO POST:")
+    print("-" * 20)
+    print(draft["post_text"])
+    print("-" * 20 + "\n")
 
     image_path = get_image_from_folder()
     if image_path: print(f"📸 Found user image: {image_path}")
@@ -116,7 +134,6 @@ def run_publish_mode():
     if success:
         print("✅ Published successfully!")
         
-        # Update State
         state = load_json(STATE_FILE)
         if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
         
@@ -131,7 +148,6 @@ def run_publish_mode():
             
         save_json(STATE_FILE, state)
         
-        # Cleanup
         os.remove(DRAFT_FILE)
         if image_path: os.remove(image_path)
         print("🧹 Cleanup complete.")
@@ -139,7 +155,7 @@ def run_publish_mode():
         print("❌ Final Post Failed.")
         exit(1)
 
-# --- LINKEDIN UTILS (FIXED VERSION HEADER) ---
+# --- LINKEDIN UTILS ---
 def get_user_urn():
     try:
         url = "https://api.linkedin.com/v2/userinfo"
@@ -159,7 +175,7 @@ def upload_image_to_linkedin(urn, image_path):
     headers = {
         'Authorization': f'Bearer {LINKEDIN_TOKEN}',
         'Content-Type': 'application/json',
-        'LinkedIn-Version': LINKEDIN_API_VERSION, # <--- FIXED
+        'LinkedIn-Version': LINKEDIN_API_VERSION,
         'X-Restli-Protocol-Version': '2.0.0'
     }
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
@@ -191,7 +207,7 @@ def post_to_linkedin(urn, text, image_asset=None):
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
         "Content-Type": "application/json",
         "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": LINKEDIN_API_VERSION # <--- FIXED
+        "LinkedIn-Version": LINKEDIN_API_VERSION
     }
     payload = {
         "author": f"urn:li:person:{urn}",
