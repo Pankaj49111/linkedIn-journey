@@ -5,7 +5,7 @@ import requests
 import google.generativeai as genai
 import sys
 
-# Force UTF-8 for logs to prevent crashes with emojis
+# Force UTF-8 for logs
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
@@ -17,7 +17,7 @@ STATE_FILE = "story_state.json"
 DRAFT_FILE = "current_draft.json"
 IMAGE_FOLDER = "images"
 
-# API VERSION CONFIG
+# API VERSION
 LINKEDIN_API_VERSION = "202411"
 
 ACTS = [
@@ -27,7 +27,7 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 5},
 ]
 
-# --- HELPERS (Now with UTF-8 Enforcement) ---
+# --- HELPERS ---
 def load_json(filename):
     if not os.path.exists(filename): return None
     try:
@@ -107,7 +107,6 @@ def run_publish_mode():
         print("⚠️ No draft found! Skipping publish.")
         exit(0)
 
-    # --- DEBUG PRINT: What are we actually posting? ---
     print("\n📝 CONTENT TO POST:")
     print("-" * 20)
     print(draft["post_text"])
@@ -209,22 +208,42 @@ def post_to_linkedin(urn, text, image_asset=None):
         "X-Restli-Protocol-Version": "2.0.0",
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
+
+    MAX_LEN = 2800
+    text = text.strip()
+    if len(text) > MAX_LEN:
+        print(f"⚠️ Text length {len(text)} exceeds limit. Trimming.")
+        text = text[:MAX_LEN - 3] + "..."
+
     payload = {
         "author": f"urn:li:person:{urn}",
-        "commentary": text,
+        "commentary": {
+            "text": text  # <--- TESTING THIS STRUCTURE
+        },
         "visibility": "PUBLIC",
-        "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": []
+        },
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False
     }
+
     if image_asset:
-        payload["content"] = {"media": {"title": "Tech Insight", "id": image_asset}}
+        payload["content"] = {
+            "media": {
+                "title": "Tech Insight",
+                "id": image_asset
+            }
+        }
+    # --- YOUR CUSTOM LOGIC END ---
 
     resp = requests.post(url, headers=headers, json=payload)
-    
+
     if resp.status_code != 201:
         print(f"❌ Post Creation Error: {resp.status_code} - {resp.text}")
-        
+
     return resp.status_code == 201
 
 if __name__ == "__main__":
