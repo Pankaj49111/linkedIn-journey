@@ -1,0 +1,4 @@
+{
+  "post_text": "We were facing 300ms latency spikes on a critical checkout API, running on fresh Java 21 and Spring Boot. My initial thought was classic backend drama: either the Kafka cluster was backing up or our heavy Cassandra writes were fighting PostgreSQL reads. So, I wasted half the morning digging through K8s resource metrics, convinced we needed more CPU. Turns out, the genius who wrote the service (me, six weeks prior) had forgotten that merely relying on Hibernate's default fetching strategy for a high-cardinality relationship is a guaranteed path to the N+1 select hell. The fix wasn't scaling; it was adding a single `JOIN FETCH` clause. Always look at the SQL first, not the cluster metrics.\n\n\nMoral of the story: The most expensive component is usually the junior engineer trying to debug Kubernetes instead of their SQL query.\n\n\n#backend #engineering #software #java",
+  "lesson_extracted": "Sophistication often hides fundamental errors."
+}
