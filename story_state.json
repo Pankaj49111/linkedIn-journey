@@ -1,5 +1,7 @@
 {
   "act_index": 0,
-  "episode": 1,
-  "previous_lessons": []
+  "episode": 2,
+  "previous_lessons": [
+    "Sophistication often hides fundamental errors."
+  ]
 }
