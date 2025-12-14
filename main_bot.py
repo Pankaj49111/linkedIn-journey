@@ -22,12 +22,14 @@ IMAGE_FOLDER = "images"
 LINKEDIN_API_VERSION = "202411"
 
 ACTS = [
+    # 32 Episodes total -> Fits the 4 posts/week schedule for 2 months
     {"name": "ACT I – Foundations & Early Confidence", "max_episodes": 8},
     {"name": "ACT II – Scale Pain & Architectural Stress", "max_episodes": 10},
     {"name": "ACT III – Failures, Incidents, Reality", "max_episodes": 8},
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 6},
 ]
 
+# --- HELPERS ---
 def load_json(filename):
     if not os.path.exists(filename): return None
     try:
@@ -95,7 +97,6 @@ def upload_image_to_linkedin(urn, image_path):
                 print(f"❌ Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
                 return None
         
-        # Return full URN for polling
         return image_urn
         
     except Exception as e:
@@ -103,10 +104,8 @@ def upload_image_to_linkedin(urn, image_path):
         return None
 
 def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
-    """Checks if image is processed and ready to post."""
     if not image_urn: return False
     
-    # URL Encode the URN for the polling URL (Fix for 400 Error)
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
     
@@ -151,16 +150,14 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # Defensive trim
     MAX_LEN = 2800
     text = text.strip()
     if len(text) > MAX_LEN:
         text = text[:MAX_LEN - 3] + "..."
 
-    # Payload
     payload = {
         "author": f"urn:li:person:{urn}",
-        "commentary": text,  # Direct string (Fix for 500 Error)
+        "commentary": text,
         "visibility": "PUBLIC",
         "distribution": {
             "feedDistribution": "MAIN_FEED",
@@ -179,7 +176,6 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
             }
         }
 
-    # Retry Logic
     attempt = 0
     while attempt <= max_retries:
         try:
@@ -213,7 +209,6 @@ def run_draft_mode():
     act = ACTS[state["act_index"]]
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # --- THE HIGH-DISCIPLINE PROMPT ---
     prompt = f"""
     Role: You are a Senior Backend Engineer writing high-performing LinkedIn posts.
     
@@ -227,7 +222,7 @@ def run_draft_mode():
     WRITING RULES (MANDATORY — DO NOT VIOLATE):
     
     HOOK RULE:
-    - First 2 lines only.
+    - The first 2 lines only.
     - Max 10 words per line.
     - Imply failure, danger, or damage.
     - Do NOT explain context.
@@ -235,6 +230,7 @@ def run_draft_mode():
     STORY RULES:
     - Short, punchy paragraphs.
     - No paragraph longer than 3 lines.
+    - Use 1-line paragraphs for tension.
     - Include exactly ONE inflection point.
     
     INFLECTION POINT RULE:
@@ -244,18 +240,24 @@ def run_draft_mode():
     
     CONFESSION RULE:
     - Explicitly admit a personal mistake or false confidence.
-    - Avoid teaching language.
-    - This is a confession, not a tutorial.
+    - Avoid instructional or tutorial language.
+    - This is a confession, not documentation.
     
     EMOJI RULES:
     - Emojis must be inline.
-    - Use only at emotional peaks (panic, realization, embarrassment).
+    - Use emojis only at emotional peaks (panic, realization, embarrassment).
     - Do NOT place emojis at the end of the post.
+    - Do NOT overuse emojis.
     
-    MORAL RULE:
-    - Start with "**The moral:**"
+    MORAL RULE (LINKEDIN-SAFE):
+    - Write a standalone line that says exactly: The moral 👇
+    - Follow it with a blank line.
+    - Then write ONE sharp sentence.
+    - Use ONLY the 👇 emoji here.
+    - Do NOT use markdown, bold, italics, or symbols.
     - The moral must criticize assumptions, defaults, or ego.
-    - Do NOT use generic advice or clichés.
+    - Do NOT use generic phrases like:
+      "best practices", "important", "not optional", "always", "never".
     
     INTERACTION RULE:
     - End with ONE sharp question inviting war stories.
