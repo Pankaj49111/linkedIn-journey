@@ -7,6 +7,7 @@ import sys
 import time
 import urllib.parse
 import re
+import random
 
 # Force UTF-8 for logs
 sys.stdout.reconfigure(encoding='utf-8')
@@ -28,6 +29,30 @@ ACTS = [
     {"name": "ACT II – Scale Pain & Architectural Stress", "max_episodes": 10},
     {"name": "ACT III – Failures, Incidents, Reality", "max_episodes": 8},
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 6},
+]
+
+# --- THEMES FOR VARIETY ---
+THEMES = [
+    {
+        "type": "THE CRASH",
+        "hook_instruction": "Imply a sudden technical failure, outage, or panic.",
+        "tone": "Urgent, chaotic, high-stakes.",
+    },
+    {
+        "type": "THE ARCHITECTURE REGRET",
+        "hook_instruction": "Start with a decision that seemed smart 2 years ago but is terrible now.",
+        "tone": "Reflective, slightly cynical, 'if I knew then what I know now'.",
+    },
+    {
+        "type": "THE UNPOPULAR OPINION",
+        "hook_instruction": "State a controversial opinion about a specific tool (e.g., Microservices, Kubernetes, Hibernate).",
+        "tone": "Bold, authoritative, challenging the status quo.",
+    },
+    {
+        "type": "THE DEBUGGING DETECTIVE",
+        "hook_instruction": "Describe a bug that was impossible to find (a 'Heisenbug').",
+        "tone": "Analytical, mysterious, satisfying reveal.",
+    }
 ]
 
 # --- HELPERS ---
@@ -53,16 +78,10 @@ def get_image_from_folder():
     return None
 
 def clean_text(text):
-    """Sanitizes AI text: removes invisible chars and stage directions."""
     if not text: return ""
-
-    # 1. Remove "Stage Directions" like (Panic) or (Tension)
-    text = re.sub(r'\((Panic|Tension|Reaction|Insight)\)', '', text, flags=re.IGNORECASE)
-
-    # 2. Remove invisible control characters (keep newlines)
-    # This strips null bytes and other weird AI artifacts
+    # Remove stage directions and invisible chars
+    text = re.sub(r'\((Panic|Tension|Reaction|Insight|Theme:.*?)\)', '', text, flags=re.IGNORECASE)
     text = "".join(ch for ch in text if ch.isprintable() or ch == '\n')
-
     return text.strip()
 
 # --- LINKEDIN UTILS ---
@@ -163,7 +182,6 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
     # --- SANITIZE TEXT ---
     text = clean_text(text)
 
-    # Defensive trim
     MAX_LEN = 2800
     if len(text) > MAX_LEN:
         text = text[:MAX_LEN - 3] + "..."
@@ -220,6 +238,9 @@ def run_draft_mode():
     act = ACTS[state["act_index"]]
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
+    current_theme = random.choice(THEMES)
+    print(f"🎰 Selected Theme: {current_theme['type']}")
+
     prompt = f"""
     Role: You are a Senior Backend Engineer writing high-performing LinkedIn posts.
     
@@ -230,39 +251,40 @@ def run_draft_mode():
     TECH STACK (STRICT):
     Java 17/21, Spring Boot, Hibernate, Postgres, Cassandra, Redis, Kafka, Docker, Kubernetes.
     
+    # --- TODAY'S THEME: {current_theme['type']} ---
+    # TONE: {current_theme['tone']}
+    # HOOK REQUIREMENT: {current_theme['hook_instruction']}
+    
     WRITING RULES (MANDATORY):
     
     1. **NO MARKDOWN:** Do NOT use bold or italics. Use CAPS for emphasis.
-    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Panic), (Tension), or (Reaction). Just write the story.
+    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Theme: X) or (Panic).
     
     3. **HOOK RULE:**
        - First 2 lines only.
        - Max 10 words per line.
-       - Imply a technical outage or mistake.
+       - Use the 'HOOK REQUIREMENT' above.
        - Do NOT explain context.
     
     4. **STORY RULES:**
        - Short, punchy paragraphs (1-3 lines max).
+       - Use 1-line paragraphs for tension.
        - Include exactly ONE inflection point.
     
-    5. **INFLECTION POINT RULE:**
-       - Written as 1–3 very short lines.
-       - Must capture the exact instant the mistake was realized.
+    5. **REFLECTION RULE:**
+       - Explicitly admit a personal mistake or a controversial realization.
+       - This is a confession/opinion, not a tutorial.
     
-    6. **REFLECTION RULE:**
-       - Explicitly admit a personal mistake.
-       - This is a confession, not a tutorial.
-    
-    7. **EMOJI RULES:**
+    6. **EMOJI RULES:**
        - Inline only.
        - No emojis at the end.
     
-    8. **MORAL RULE (LINKEDIN-SAFE):**
+    7. **MORAL RULE (LINKEDIN-SAFE):**
        - Write a standalone line: The Moral 👇
        - Follow with ONE sharp sentence.
        - Do NOT use generic advice ("always", "never").
     
-    9. **INTERACTION RULE:**
+    8. **INTERACTION RULE:**
        - End with ONE sharp question inviting war stories.
     
     FORMAT RULE:
