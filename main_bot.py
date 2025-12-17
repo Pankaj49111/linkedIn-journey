@@ -2,12 +2,14 @@ import os
 import json
 import argparse
 import requests
-from google import genai # <--- NEW LIBRARY IMPORT
+from google import genai
 import sys
 import time
 import urllib.parse
 import re
 import random
+
+sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -233,7 +235,6 @@ def run_draft_mode():
     state = load_json(STATE_FILE)
     if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
-    # --- NEW CLIENT INITIALIZATION ---
     client = genai.Client(api_key=GEMINI_KEY)
 
     act = ACTS[state["act_index"]]
@@ -279,16 +280,12 @@ def run_draft_mode():
     """
 
     try:
-        # --- NEW GENERATION METHOD ---
         response = client.models.generate_content(
-            model="gemini-1.5-flash",
+            model="gemini-flash-latest",
             contents=prompt,
-            config={
-                "response_mime_type": "application/json"
-            }
+            config={"response_mime_type": "application/json"}
         )
 
-        # In the new SDK, response.text is directly accessible
         content = json.loads(response.text)
         content["post_text"] = clean_text(content["post_text"])
 
