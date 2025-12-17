@@ -22,7 +22,6 @@ IMAGE_FOLDER = "images"
 LINKEDIN_API_VERSION = "202411"
 
 ACTS = [
-    # 32 Episodes total -> Fits the 4 posts/week schedule for 2 months
     {"name": "ACT I – Foundations & Early Confidence", "max_episodes": 8},
     {"name": "ACT II – Scale Pain & Architectural Stress", "max_episodes": 10},
     {"name": "ACT III – Failures, Incidents, Reality", "max_episodes": 8},
