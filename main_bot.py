@@ -6,7 +6,9 @@ import google.generativeai as genai
 import sys
 import time
 import urllib.parse
+import re
 
+# Force UTF-8 for logs
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
@@ -32,14 +34,14 @@ ACTS = [
 def load_json(filename):
     if not os.path.exists(filename): return None
     try:
-        with open(filename, "r", encoding="utf-8") as f: 
+        with open(filename, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         print(f"❌ Error loading {filename}: {e}")
         return None
 
 def save_json(filename, data):
-    with open(filename, "w", encoding="utf-8") as f: 
+    with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
 def get_image_from_folder():
@@ -49,6 +51,19 @@ def get_image_from_folder():
         if file.lower().endswith(valid_extensions):
             return os.path.join(IMAGE_FOLDER, file)
     return None
+
+def clean_text(text):
+    """Sanitizes AI text: removes invisible chars and stage directions."""
+    if not text: return ""
+
+    # 1. Remove "Stage Directions" like (Panic) or (Tension)
+    text = re.sub(r'\((Panic|Tension|Reaction|Insight)\)', '', text, flags=re.IGNORECASE)
+
+    # 2. Remove invisible control characters (keep newlines)
+    # This strips null bytes and other weird AI artifacts
+    text = "".join(ch for ch in text if ch.isprintable() or ch == '\n')
+
+    return text.strip()
 
 # --- LINKEDIN UTILS ---
 def get_user_urn():
@@ -76,40 +91,36 @@ def upload_image_to_linkedin(urn, image_path):
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
 
     try:
-        # 1. Initialize
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
         if resp.status_code not in (200, 201):
             print(f"❌ Init Upload Error: {resp.status_code} - {resp.text}")
             return None
-        
+
         data = resp.json().get('value') or resp.json()
         upload_url = data.get('uploadUrl')
-        image_urn = data.get('image') or data.get('imageUrn') 
+        image_urn = data.get('image') or data.get('imageUrn')
 
         if not upload_url or not image_urn:
             return None
 
-        # 2. Upload Bytes
         with open(image_path, 'rb') as f:
             put_resp = requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
             if put_resp.status_code not in (200, 201):
                 print(f"❌ Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
                 return None
-        
+
         return image_urn
-        
     except Exception as e:
         print(f"❌ Upload Exception: {e}")
         return None
 
 def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
     if not image_urn: return False
-    
+
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
-    
+
     print(f"⏳ Polling image status...")
-    
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
         "LinkedIn-Version": LINKEDIN_API_VERSION,
@@ -125,7 +136,7 @@ def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
                 status = None
                 if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
                 else: status = data.get("status") or data.get("processingState")
-                
+
                 if status == "AVAILABLE":
                     print("✅ Image is AVAILABLE.")
                     return True
@@ -149,8 +160,11 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
+    # --- SANITIZE TEXT ---
+    text = clean_text(text)
+
+    # Defensive trim
     MAX_LEN = 2800
-    text = text.strip()
     if len(text) > MAX_LEN:
         text = text[:MAX_LEN - 3] + "..."
 
@@ -181,19 +195,17 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
             resp = requests.post(url, headers=headers, json=payload, timeout=30)
             if resp.status_code == 201:
                 return True
-            
+
             if 400 <= resp.status_code < 500:
                 print(f"❌ Post Rejected ({resp.status_code}): {resp.text}")
                 return False
-                
+
             print(f"⚠️ Server Error ({resp.status_code}), retrying...")
-            
         except Exception as e:
             print(f"⚠️ Network Exception: {e}")
 
         attempt += 1
         time.sleep(2 ** attempt)
-
     return False
 
 # --- CORE LOGIC ---
@@ -218,48 +230,40 @@ def run_draft_mode():
     TECH STACK (STRICT):
     Java 17/21, Spring Boot, Hibernate, Postgres, Cassandra, Redis, Kafka, Docker, Kubernetes.
     
-    WRITING RULES (MANDATORY — DO NOT VIOLATE):
+    WRITING RULES (MANDATORY):
     
-    HOOK RULE:
-    - The first 2 lines only.
-    - Max 10 words per line.
-    - Imply failure, danger, or damage.
-    - Do NOT explain context.
+    1. **NO MARKDOWN:** Do NOT use bold or italics. Use CAPS for emphasis.
+    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Panic), (Tension), or (Reaction). Just write the story.
     
-    STORY RULES:
-    - Short, punchy paragraphs.
-    - No paragraph longer than 3 lines.
-    - Use 1-line paragraphs for tension.
-    - Include exactly ONE inflection point.
+    3. **HOOK RULE:**
+       - First 2 lines only.
+       - Max 10 words per line.
+       - Imply a technical outage or mistake.
+       - Do NOT explain context.
     
-    INFLECTION POINT RULE:
-    - Written as 1–3 very short lines.
-    - Must capture the exact instant the mistake was realized.
-    - Can be a question, quote, or sentence fragment.
+    4. **STORY RULES:**
+       - Short, punchy paragraphs (1-3 lines max).
+       - Include exactly ONE inflection point.
     
-    CONFESSION RULE:
-    - Explicitly admit a personal mistake or false confidence.
-    - Avoid instructional or tutorial language.
-    - This is a confession, not documentation.
+    5. **INFLECTION POINT RULE:**
+       - Written as 1–3 very short lines.
+       - Must capture the exact instant the mistake was realized.
     
-    EMOJI RULES:
-    - Emojis must be inline.
-    - Use emojis only at emotional peaks (panic, realization, embarrassment).
-    - Do NOT place emojis at the end of the post.
-    - Do NOT overuse emojis.
+    6. **REFLECTION RULE:**
+       - Explicitly admit a personal mistake.
+       - This is a confession, not a tutorial.
     
-    MORAL RULE (LINKEDIN-SAFE):
-    - Write a standalone line that says exactly: The moral 👇
-    - Follow it with a blank line.
-    - Then write ONE sharp sentence.
-    - Use ONLY the 👇 emoji here.
-    - Do NOT use markdown, bold, italics, or symbols.
-    - The moral must criticize assumptions, defaults, or ego.
-    - Do NOT use generic phrases like:
-      "best practices", "important", "not optional", "always", "never".
+    7. **EMOJI RULES:**
+       - Inline only.
+       - No emojis at the end.
     
-    INTERACTION RULE:
-    - End with ONE sharp question inviting war stories.
+    8. **MORAL RULE (LINKEDIN-SAFE):**
+       - Write a standalone line: The Moral 👇
+       - Follow with ONE sharp sentence.
+       - Do NOT use generic advice ("always", "never").
+    
+    9. **INTERACTION RULE:**
+       - End with ONE sharp question inviting war stories.
     
     FORMAT RULE:
     - End with exactly these hashtags:
@@ -273,14 +277,19 @@ def run_draft_mode():
     
     Length: 150–200 words.
     """
-    
+
     try:
         response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+        if response.candidates[0].finish_reason != 1:
+            print(f"❌ Generation stopped. Reason: {response.candidates[0].finish_reason}")
+            exit(1)
+
         content = json.loads(response.text)
         save_json(DRAFT_FILE, content)
         print(f"✅ Draft saved to {DRAFT_FILE}.")
         print("🔍 PREVIEW:")
         print(content["post_text"][:100] + "...")
+
     except Exception as e:
         print(f"❌ Generation Failed: {e}")
         exit(1)
@@ -307,8 +316,6 @@ def run_publish_mode():
         exit(1)
 
     media_urn = None
-    
-    # Image Upload & Polling
     if image_path:
         media_urn = upload_image_to_linkedin(urn, image_path)
         if media_urn:
@@ -319,26 +326,25 @@ def run_publish_mode():
         else:
             print("⚠️ Upload failed. Posting TEXT ONLY.")
 
-    # Post
     success = post_to_linkedin(urn, draft["post_text"], media_urn)
-    
+
     if success:
         print("✅ Published successfully!")
-        
+
         state = load_json(STATE_FILE)
         if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
-        
+
         state["previous_lessons"].append(draft["lesson_extracted"])
         state["episode"] += 1
-        
+
         current_act = ACTS[state["act_index"]]
         if state["episode"] > current_act["max_episodes"]:
             state["act_index"] += 1
             state["episode"] = 1
-            if state["act_index"] >= len(ACTS): state["act_index"] = 0 
-            
+            if state["act_index"] >= len(ACTS): state["act_index"] = 0
+
         save_json(STATE_FILE, state)
-        
+
         os.remove(DRAFT_FILE)
         if image_path: os.remove(image_path)
         print("🧹 Cleanup complete.")
