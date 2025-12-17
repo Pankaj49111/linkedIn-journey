@@ -1,7 +1,8 @@
 {
   "act_index": 0,
-  "episode": 2,
+  "episode": 3,
   "previous_lessons": [
-    "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing."
+    "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
+    "Never trust default framework settings for database pooling in high-concurrency environments."
   ]
 }
