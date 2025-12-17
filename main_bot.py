@@ -2,7 +2,8 @@ import os
 import json
 import argparse
 import requests
-import google.generativeai as genai
+from google import genai # <--- NEW LIBRARY IMPORT
+import sys
 import time
 import urllib.parse
 import re
@@ -55,7 +56,6 @@ THEMES = [
 def safe_print(text):
     """Prints text while stripping unprintable characters to prevent CI/CD crashes."""
     try:
-        # Encode to UTF-8, replacing errors, then decode back
         print(text.encode('utf-8', 'replace').decode('utf-8'))
     except Exception:
         print("Scrubbed output due to encoding error.")
@@ -70,7 +70,6 @@ def load_json(filename):
         return None
 
 def save_json(filename, data):
-    # ensure_ascii=True prevents crashes by escaping emojis as \uXXXX
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=True)
 
@@ -84,9 +83,7 @@ def get_image_from_folder():
 
 def clean_text(text):
     if not text: return ""
-    # Remove stage directions
     text = re.sub(r'\((Panic|Tension|Reaction|Insight|Theme:.*?)\)', '', text, flags=re.IGNORECASE)
-    # Remove surrogate characters (the cause of your crash)
     text = text.encode('utf-8', 'ignore').decode('utf-8')
     return text.strip()
 
@@ -236,13 +233,12 @@ def run_draft_mode():
     state = load_json(STATE_FILE)
     if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
-    genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    # --- NEW CLIENT INITIALIZATION ---
+    client = genai.Client(api_key=GEMINI_KEY)
 
     act = ACTS[state["act_index"]]
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # --- SELECT RANDOM THEME ---
     current_theme = random.choice(THEMES)
     safe_print(f"🎰 Selected Theme: {current_theme['type']}")
 
@@ -261,40 +257,17 @@ def run_draft_mode():
     # HOOK REQUIREMENT: {current_theme['hook_instruction']}
     
     WRITING RULES (MANDATORY):
-    
     1. **NO MARKDOWN:** Do NOT use bold or italics. Use CAPS for emphasis.
-    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Theme: X) or (Panic).
-    
-    3. **HOOK RULE:**
-       - First 2 lines only.
-       - Max 10 words per line.
-       - Use the 'HOOK REQUIREMENT' above.
-       - Do NOT explain context.
-    
-    4. **STORY RULES:**
-       - Short, punchy paragraphs (1-3 lines max).
-       - Use 1-line paragraphs for tension.
-       - Include exactly ONE inflection point.
-    
-    5. **REFLECTION RULE:**
-       - Explicitly admit a personal mistake or a controversial realization.
-       - This is a confession/opinion, not a tutorial.
-    
-    6. **EMOJI RULES:**
-       - Inline only.
-       - No emojis at the end.
-    
-    7. **MORAL RULE (LINKEDIN-SAFE):**
-       - Write a standalone line: The Moral 👇
-       - Follow with ONE sharp sentence.
-       - Do NOT use generic advice ("always", "never").
-    
-    8. **INTERACTION RULE:**
-       - End with ONE sharp question inviting war stories.
+    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Theme: X).
+    3. **HOOK RULE:** First 2 lines only. Max 10 words per line. Use the 'HOOK REQUIREMENT'.
+    4. **STORY RULES:** Short, punchy paragraphs. Exactly ONE inflection point.
+    5. **REFLECTION RULE:** Explicitly admit a mistake/opinion. Confession, not tutorial.
+    6. **EMOJI RULES:** Inline only. No emojis at the end.
+    7. **MORAL RULE:** Standalone line: The Moral 👇. Follow with ONE sharp sentence.
+    8. **INTERACTION RULE:** End with ONE sharp question.
     
     FORMAT RULE:
-    - End with exactly these hashtags:
-    #backend #engineering #software #java
+    End with hashtags: #backend #engineering #software #java
     
     OUTPUT FORMAT (JSON ONLY):
     {{
@@ -306,13 +279,17 @@ def run_draft_mode():
     """
 
     try:
-        response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
-        if response.candidates[0].finish_reason != 1:
-            safe_print(f"❌ Generation stopped. Reason: {response.candidates[0].finish_reason}")
-            exit(1)
+        # --- NEW GENERATION METHOD ---
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json"
+            }
+        )
 
+        # In the new SDK, response.text is directly accessible
         content = json.loads(response.text)
-        # Sanitization before saving
         content["post_text"] = clean_text(content["post_text"])
 
         save_json(DRAFT_FILE, content)
