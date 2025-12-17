@@ -30,31 +30,49 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 6},
 ]
 
-# --- THEMES ---
 THEMES = [
     {
-        "type": "THE CRASH",
+        "type": "THE EUREKA MOMENT 💡",
+        "hook_instruction": "Describe a moment of pure clarity where complex code suddenly clicked.",
+        "tone": "Inspiring, energetic, satisfying.",
+    },
+    {
+        "type": "THE SILENT VICTORY 🏆",
+        "hook_instruction": "We saved 50% on costs (or latency) with one tiny change nobody noticed.",
+        "tone": "Proud, technical, 'it's the little things'.",
+    },
+    {
+        "type": "THE HUMAN ALGORITHM 🤝",
+        "hook_instruction": "The hardest distributed system to manage is a team of humans.",
+        "tone": "Empathetic, wise, leadership-focused.",
+    },
+    {
+        "type": "THE BORING STACK ❤️",
+        "hook_instruction": "Why I chose 'boring' Java/Postgres over the shiny new trend.",
+        "tone": "Confident, counter-culture, pragmatic.",
+    },
+    {
+        "type": "THE CRASH 🚨",
         "hook_instruction": "Imply a sudden technical failure, outage, or panic.",
         "tone": "Urgent, chaotic, high-stakes.",
     },
     {
-        "type": "THE ARCHITECTURE REGRET",
-        "hook_instruction": "Start with a decision that seemed smart 2 years ago but is terrible now.",
-        "tone": "Reflective, slightly cynical, 'if I knew then what I know now'.",
-    },
-    {
-        "type": "THE UNPOPULAR OPINION",
-        "hook_instruction": "State a controversial opinion about a specific tool (e.g., Microservices, Kubernetes, Hibernate).",
-        "tone": "Bold, authoritative, challenging the status quo.",
-    },
-    {
-        "type": "THE DEBUGGING DETECTIVE",
-        "hook_instruction": "Describe a bug that was impossible to find (a 'Heisenbug').",
-        "tone": "Analytical, mysterious, satisfying reveal.",
+        "type": "THE ARCHITECTURAL TRAP 🏗️",
+        "hook_instruction": "We designed a system that looked perfect on a whiteboard but failed in reality.",
+        "tone": "Humble, analytical, warning against over-complexity.",
     }
 ]
 
-# --- ROBUST HELPERS ---
+TECH_FOCUS_AREAS = [
+    "Relational Data (Spring Boot, Hibernate, PostgreSQL, Transactions)",
+    "Async Systems (Kafka, Event-Driven Architecture, Consumer Lag)",
+    "Caching & Performance (Redis, Distributed Locking, Latency)",
+    "Distributed Data (Cassandra, Consistency vs Availability)",
+    "Infrastructure (Docker, Kubernetes, OOMs, Pod Restarts)",
+    "Modern Java (Java 21, Virtual Threads, Concurrency)",
+    "Legacy Migration (Monolith to Microservices)"
+]
+
 def safe_print(text):
     """Prints text while stripping unprintable characters to prevent CI/CD crashes."""
     try:
@@ -84,9 +102,22 @@ def get_image_from_folder():
     return None
 
 def clean_text(text):
+    """Sanitizes text to remove labels, asterisks, and invisible chars."""
     if not text: return ""
-    text = re.sub(r'\((Panic|Tension|Reaction|Insight|Theme:.*?)\)', '', text, flags=re.IGNORECASE)
+
+    # 1. Remove Bracketed/Parenthesized labels like [Inflection Point]
+    text = re.sub(r'[\(\[].*?[\)\]]', '', text)
+
+    # 2. Remove explicit text headers (Case Insensitive)
+    # Matches "Inflection Point:", "Hook:", "Story:", "Moral:" at start of lines
+    text = re.sub(r'(?i)^(Inflection Point|Hook|Story|Reflection|Moral|Theme|Tech Focus):\s*', '', text, flags=re.MULTILINE)
+
+    # 3. Remove Asterisks (LinkedIn doesn't support markdown italics)
+    text = text.replace('*', '')
+
+    # 4. Remove artifacts (null bytes, etc)
     text = text.encode('utf-8', 'ignore').decode('utf-8')
+
     return text.strip()
 
 # --- LINKEDIN UTILS ---
@@ -185,6 +216,7 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
     }
 
     text = clean_text(text)
+
     MAX_LEN = 2800
     if len(text) > MAX_LEN:
         text = text[:MAX_LEN - 3] + "..."
@@ -241,7 +273,10 @@ def run_draft_mode():
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
     current_theme = random.choice(THEMES)
-    safe_print(f"🎰 Selected Theme: {current_theme['type']}")
+    current_tech = random.choice(TECH_FOCUS_AREAS)
+
+    safe_print(f"🎰 Theme: {current_theme['type']}")
+    safe_print(f"🛠️ Tech: {current_tech}")
 
     prompt = f"""
     Role: You are a Senior Backend Engineer writing high-performing LinkedIn posts.
@@ -250,22 +285,27 @@ def run_draft_mode():
     Previous Lessons:
     {previous_lessons}
     
-    TECH STACK (STRICT):
-    Java 17/21, Spring Boot, Hibernate, Postgres, Cassandra, Redis, Kafka, Docker, Kubernetes.
-    
-    # --- TODAY'S THEME: {current_theme['type']} ---
-    # TONE: {current_theme['tone']}
-    # HOOK REQUIREMENT: {current_theme['hook_instruction']}
+    TODAY'S CONSTRAINTS:
+    - Theme: {current_theme['type']}
+    - Hook Style: {current_theme['hook_instruction']}
+    - Tone: {current_theme['tone']}
+    - Tech Focus: {current_tech}
     
     WRITING RULES (MANDATORY):
     1. **NO MARKDOWN:** Do NOT use bold or italics. Use CAPS for emphasis.
-    2. **NO STAGE DIRECTIONS:** Do NOT write text like (Theme: X).
+    2. **NO LABELS:** Do NOT write [Inflection Point], (Theme), or any other labels. Just write the story.
+    
     3. **HOOK RULE:** First 2 lines only. Max 10 words per line. Use the 'HOOK REQUIREMENT'.
-    4. **STORY RULES:** Short, punchy paragraphs. Exactly ONE inflection point.
-    5. **REFLECTION RULE:** Explicitly admit a mistake/opinion. Confession, not tutorial.
-    6. **EMOJI RULES:** Inline only. No emojis at the end.
-    7. **MORAL RULE:** Standalone line: The Moral 👇. Follow with ONE sharp sentence.
-    8. **INTERACTION RULE:** End with ONE sharp question.
+    
+    4. **CONTEXT RULE (NEW):**
+       - The first paragraph MUST briefly explain **what you were trying to achieve** (the design goal) before describing the failure/event.
+       - e.g., "The goal was 99.99% availability..." or "We wanted real-time updates..."
+       
+    5. **STORY RULES:** Short, punchy paragraphs. Exactly ONE inflection point.
+    6. **REFLECTION RULE:** Explicitly admit a mistake/opinion. Confession, not tutorial.
+    7. **EMOJI RULES:** Inline only. No emojis at the end.
+    8. **MORAL RULE:** Standalone line: The Moral 👇. Follow with ONE sharp sentence.
+    9. **INTERACTION RULE:** End with ONE sharp question.
     
     FORMAT RULE:
     End with hashtags: #backend #engineering #software #java
