@@ -3,14 +3,10 @@ import json
 import argparse
 import requests
 import google.generativeai as genai
-import sys
 import time
 import urllib.parse
 import re
 import random
-
-# Force UTF-8 for logs
-sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -31,7 +27,7 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 6},
 ]
 
-# --- THEMES FOR VARIETY ---
+# --- THEMES ---
 THEMES = [
     {
         "type": "THE CRASH",
@@ -55,19 +51,28 @@ THEMES = [
     }
 ]
 
-# --- HELPERS ---
+# --- ROBUST HELPERS ---
+def safe_print(text):
+    """Prints text while stripping unprintable characters to prevent CI/CD crashes."""
+    try:
+        # Encode to UTF-8, replacing errors, then decode back
+        print(text.encode('utf-8', 'replace').decode('utf-8'))
+    except Exception:
+        print("Scrubbed output due to encoding error.")
+
 def load_json(filename):
     if not os.path.exists(filename): return None
     try:
         with open(filename, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"❌ Error loading {filename}: {e}")
+        safe_print(f"❌ Error loading {filename}: {e}")
         return None
 
 def save_json(filename, data):
+    # ensure_ascii=True prevents crashes by escaping emojis as \uXXXX
     with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=2, ensure_ascii=True)
 
 def get_image_from_folder():
     if not os.path.exists(IMAGE_FOLDER): return None
@@ -79,9 +84,10 @@ def get_image_from_folder():
 
 def clean_text(text):
     if not text: return ""
-    # Remove stage directions and invisible chars
+    # Remove stage directions
     text = re.sub(r'\((Panic|Tension|Reaction|Insight|Theme:.*?)\)', '', text, flags=re.IGNORECASE)
-    text = "".join(ch for ch in text if ch.isprintable() or ch == '\n')
+    # Remove surrogate characters (the cause of your crash)
+    text = text.encode('utf-8', 'ignore').decode('utf-8')
     return text.strip()
 
 # --- LINKEDIN UTILS ---
@@ -91,15 +97,15 @@ def get_user_urn():
         headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}"}
         resp = requests.get(url, headers=headers)
         if resp.status_code != 200:
-            print(f"❌ User Info Error: {resp.status_code} - {resp.text}")
+            safe_print(f"❌ User Info Error: {resp.status_code} - {resp.text}")
             return None
         return resp.json().get("sub")
     except Exception as e:
-        print(f"❌ User Info Exception: {e}")
+        safe_print(f"❌ User Info Exception: {e}")
         return None
 
 def upload_image_to_linkedin(urn, image_path):
-    print("Uploading image...")
+    safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
     headers = {
         'Authorization': f'Bearer {LINKEDIN_TOKEN}',
@@ -112,7 +118,7 @@ def upload_image_to_linkedin(urn, image_path):
     try:
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
         if resp.status_code not in (200, 201):
-            print(f"❌ Init Upload Error: {resp.status_code} - {resp.text}")
+            safe_print(f"❌ Init Upload Error: {resp.status_code} - {resp.text}")
             return None
 
         data = resp.json().get('value') or resp.json()
@@ -125,12 +131,12 @@ def upload_image_to_linkedin(urn, image_path):
         with open(image_path, 'rb') as f:
             put_resp = requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
             if put_resp.status_code not in (200, 201):
-                print(f"❌ Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
+                safe_print(f"❌ Binary Upload Error: {put_resp.status_code} - {put_resp.text}")
                 return None
 
         return image_urn
     except Exception as e:
-        print(f"❌ Upload Exception: {e}")
+        safe_print(f"❌ Upload Exception: {e}")
         return None
 
 def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
@@ -139,7 +145,7 @@ def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
 
-    print(f"⏳ Polling image status...")
+    safe_print(f"⏳ Polling image status...")
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
         "LinkedIn-Version": LINKEDIN_API_VERSION,
@@ -157,17 +163,17 @@ def poll_image_status(image_urn, timeout_seconds=60, poll_interval=2):
                 else: status = data.get("status") or data.get("processingState")
 
                 if status == "AVAILABLE":
-                    print("✅ Image is AVAILABLE.")
+                    safe_print("✅ Image is AVAILABLE.")
                     return True
                 elif status in ["FAILED", "ERROR"]:
-                    print(f"❌ Image processing failed: {status}")
+                    safe_print(f"❌ Image processing failed: {status}")
                     return False
             time.sleep(poll_interval)
         except Exception as e:
-            print(f"Polling warning: {e}")
+            safe_print(f"Polling warning: {e}")
             time.sleep(poll_interval)
 
-    print("❌ Polling timed out.")
+    safe_print("❌ Polling timed out.")
     return False
 
 def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
@@ -179,9 +185,7 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # --- SANITIZE TEXT ---
     text = clean_text(text)
-
     MAX_LEN = 2800
     if len(text) > MAX_LEN:
         text = text[:MAX_LEN - 3] + "..."
@@ -215,12 +219,12 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
                 return True
 
             if 400 <= resp.status_code < 500:
-                print(f"❌ Post Rejected ({resp.status_code}): {resp.text}")
+                safe_print(f"❌ Post Rejected ({resp.status_code}): {resp.text}")
                 return False
 
-            print(f"⚠️ Server Error ({resp.status_code}), retrying...")
+            safe_print(f"⚠️ Server Error ({resp.status_code}), retrying...")
         except Exception as e:
-            print(f"⚠️ Network Exception: {e}")
+            safe_print(f"⚠️ Network Exception: {e}")
 
         attempt += 1
         time.sleep(2 ** attempt)
@@ -228,18 +232,19 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
 
 # --- CORE LOGIC ---
 def run_draft_mode():
-    print("🌅 STARTING DRAFT MODE...")
+    safe_print("🌅 STARTING DRAFT MODE...")
     state = load_json(STATE_FILE)
     if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel("gemini-flash-latest")
-    
+    model = genai.GenerativeModel("gemini-1.5-flash")
+
     act = ACTS[state["act_index"]]
     previous_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
+    # --- SELECT RANDOM THEME ---
     current_theme = random.choice(THEMES)
-    print(f"🎰 Selected Theme: {current_theme['type']}")
+    safe_print(f"🎰 Selected Theme: {current_theme['type']}")
 
     prompt = f"""
     Role: You are a Senior Backend Engineer writing high-performing LinkedIn posts.
@@ -303,38 +308,41 @@ def run_draft_mode():
     try:
         response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
         if response.candidates[0].finish_reason != 1:
-            print(f"❌ Generation stopped. Reason: {response.candidates[0].finish_reason}")
+            safe_print(f"❌ Generation stopped. Reason: {response.candidates[0].finish_reason}")
             exit(1)
 
         content = json.loads(response.text)
+        # Sanitization before saving
+        content["post_text"] = clean_text(content["post_text"])
+
         save_json(DRAFT_FILE, content)
-        print(f"✅ Draft saved to {DRAFT_FILE}.")
-        print("🔍 PREVIEW:")
-        print(content["post_text"][:100] + "...")
+        safe_print(f"✅ Draft saved to {DRAFT_FILE}.")
+        safe_print("🔍 PREVIEW:")
+        safe_print(content["post_text"][:100] + "...")
 
     except Exception as e:
-        print(f"❌ Generation Failed: {e}")
+        safe_print(f"❌ Generation Failed: {e}")
         exit(1)
 
 def run_publish_mode():
-    print("🚀 STARTING PUBLISH MODE...")
+    safe_print("🚀 STARTING PUBLISH MODE...")
     draft = load_json(DRAFT_FILE)
     if not draft:
-        print("⚠️ No draft found! Skipping.")
+        safe_print("⚠️ No draft found! Skipping.")
         exit(0)
 
-    print("\n📝 CONTENT TO POST:")
-    print("-" * 20)
-    print(draft["post_text"])
-    print("-" * 20 + "\n")
+    safe_print("\n📝 CONTENT TO POST:")
+    safe_print("-" * 20)
+    safe_print(draft["post_text"])
+    safe_print("-" * 20 + "\n")
 
     image_path = get_image_from_folder()
-    if image_path: print(f"📸 Found image: {image_path}")
-    else: print("📝 No image found. Text only.")
+    if image_path: safe_print(f"📸 Found image: {image_path}")
+    else: safe_print("📝 No image found. Text only.")
 
     urn = get_user_urn()
     if not urn:
-        print("❌ CRITICAL: Invalid Token.")
+        safe_print("❌ CRITICAL: Invalid Token.")
         exit(1)
 
     media_urn = None
@@ -343,15 +351,15 @@ def run_publish_mode():
         if media_urn:
             is_ready = poll_image_status(media_urn)
             if not is_ready:
-                print("⚠️ Image not ready. Posting TEXT ONLY.")
+                safe_print("⚠️ Image not ready. Posting TEXT ONLY.")
                 media_urn = None
         else:
-            print("⚠️ Upload failed. Posting TEXT ONLY.")
+            safe_print("⚠️ Upload failed. Posting TEXT ONLY.")
 
     success = post_to_linkedin(urn, draft["post_text"], media_urn)
 
     if success:
-        print("✅ Published successfully!")
+        safe_print("✅ Published successfully!")
 
         state = load_json(STATE_FILE)
         if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
@@ -369,9 +377,9 @@ def run_publish_mode():
 
         os.remove(DRAFT_FILE)
         if image_path: os.remove(image_path)
-        print("🧹 Cleanup complete.")
+        safe_print("🧹 Cleanup complete.")
     else:
-        print("❌ Final Post Failed.")
+        safe_print("❌ Final Post Failed.")
         exit(1)
 
 if __name__ == "__main__":
