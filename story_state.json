@@ -1,8 +1,9 @@
 {
   "act_index": 0,
-  "episode": 3,
+  "episode": 4,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
-    "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads."
+    "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
+    "If your high-performance cache layer is blocking the main thread, you didn't buy speed, you bought a distributed bottleneck."
   ]
 }
