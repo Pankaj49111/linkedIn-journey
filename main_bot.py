@@ -9,6 +9,7 @@ import urllib.parse
 import re
 import random
 
+# Force UTF-8 for logs
 sys.stdout.reconfigure(encoding='utf-8')
 
 # --- CONFIGURATION ---
@@ -30,39 +31,41 @@ ACTS = [
     {"name": "ACT IV – Maturity, Trade-offs, Engineering Wisdom", "max_episodes": 6},
 ]
 
+# --- THEMES ---
 THEMES = [
     {
         "type": "THE EUREKA MOMENT 💡",
-        "hook_instruction": "Describe a moment of pure clarity where complex code suddenly clicked.",
+        "hook_instruction": "Start with a moment of sudden clarity after days of confusion.",
         "tone": "Inspiring, energetic, satisfying.",
     },
     {
         "type": "THE SILENT VICTORY 🏆",
-        "hook_instruction": "We saved 50% on costs (or latency) with one tiny change nobody noticed.",
+        "hook_instruction": "Start with a tiny optimization that had a massive, invisible impact.",
         "tone": "Proud, technical, 'it's the little things'.",
     },
     {
         "type": "THE HUMAN ALGORITHM 🤝",
-        "hook_instruction": "The hardest distributed system to manage is a team of humans.",
+        "hook_instruction": "Open with a realization that the code wasn't the problem, the team communication was.",
         "tone": "Empathetic, wise, leadership-focused.",
     },
     {
         "type": "THE BORING STACK ❤️",
-        "hook_instruction": "Why I chose 'boring' Java/Postgres over the shiny new trend.",
+        "hook_instruction": "Defend a 'boring' technology choice that saved the day.",
         "tone": "Confident, counter-culture, pragmatic.",
     },
     {
         "type": "THE CRASH 🚨",
-        "hook_instruction": "Imply a sudden technical failure, outage, or panic.",
+        "hook_instruction": "Open with the exact moment you realized something was terribly wrong.",
         "tone": "Urgent, chaotic, high-stakes.",
     },
     {
         "type": "THE ARCHITECTURAL TRAP 🏗️",
-        "hook_instruction": "We designed a system that looked perfect on a whiteboard but failed in reality.",
+        "hook_instruction": "Admit to designing a system that was too clever for its own good.",
         "tone": "Humble, analytical, warning against over-complexity.",
     }
 ]
 
+# --- TECH FOCUS ---
 TECH_FOCUS_AREAS = [
     "Relational Data (Spring Boot, Hibernate, PostgreSQL, Transactions)",
     "Async Systems (Kafka, Event-Driven Architecture, Consumer Lag)",
@@ -73,8 +76,8 @@ TECH_FOCUS_AREAS = [
     "Legacy Migration (Monolith to Microservices)"
 ]
 
+# --- ROBUST HELPERS ---
 def safe_print(text):
-    """Prints text while stripping unprintable characters to prevent CI/CD crashes."""
     try:
         print(text.encode('utf-8', 'replace').decode('utf-8'))
     except Exception:
@@ -109,7 +112,6 @@ def clean_text(text):
     text = re.sub(r'[\(\[].*?[\)\]]', '', text)
 
     # 2. Remove explicit text headers (Case Insensitive)
-    # Matches "Inflection Point:", "Hook:", "Story:", "Moral:" at start of lines
     text = re.sub(r'(?i)^(Inflection Point|Hook|Story|Reflection|Moral|Theme|Tech Focus):\s*', '', text, flags=re.MULTILINE)
 
     # 3. Remove Asterisks (LinkedIn doesn't support markdown italics)
@@ -215,6 +217,7 @@ def post_to_linkedin(urn, text, image_asset=None, max_retries=2):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
+    # --- APPLY CLEANING ---
     text = clean_text(text)
 
     MAX_LEN = 2800
@@ -279,43 +282,113 @@ def run_draft_mode():
     safe_print(f"🛠️ Tech: {current_tech}")
 
     prompt = f"""
-    Role: You are a Senior Backend Engineer writing high-performing LinkedIn posts.
-    
-    Current Life Stage: {act['name']} (Episode {state['episode']})
+    Role:
+    You are a Senior Backend Engineer with years of production experience.
+    You write thoughtful, high-performing LinkedIn posts that feel human, calm, and earned — never preachy or hype-driven.
+
+    Current Life Stage:
+    {act['name']} (Episode {state['episode']})
+
     Previous Lessons:
     {previous_lessons}
-    
-    TODAY'S CONSTRAINTS:
+
+    TODAY’S CONTEXT:
     - Theme: {current_theme['type']}
     - Hook Style: {current_theme['hook_instruction']}
     - Tone: {current_theme['tone']}
     - Tech Focus: {current_tech}
-    
-    WRITING RULES (MANDATORY):
-    1. **NO MARKDOWN:** Do NOT use bold or italics. Use CAPS for emphasis.
-    2. **NO LABELS:** Do NOT write [Inflection Point], (Theme), or any other labels. Just write the story.
-    
-    3. **HOOK RULE:** First 2 lines only. Max 10 words per line. Use the 'HOOK REQUIREMENT'.
-    
-    4. **CONTEXT RULE (NEW):**
-       - The first paragraph MUST briefly explain **what you were trying to achieve** (the design goal) before describing the failure/event.
-       - e.g., "The goal was 99.99% availability..." or "We wanted real-time updates..."
-       
-    5. **STORY RULES:** Short, punchy paragraphs. Exactly ONE inflection point.
-    6. **REFLECTION RULE:** Explicitly admit a mistake/opinion. Confession, not tutorial.
-    7. **EMOJI RULES:** Inline only. No emojis at the end.
-    8. **MORAL RULE:** Standalone line: The Moral 👇. Follow with ONE sharp sentence.
-    9. **INTERACTION RULE:** End with ONE sharp question.
-    
-    FORMAT RULE:
-    End with hashtags: #backend #engineering #software #java
-    
-    OUTPUT FORMAT (JSON ONLY):
+
+    ========================
+    MANDATORY NARRATIVE SPINE
+    ========================
+    You MUST follow this order exactly:
+
+    1. Identity & Humility
+       - Open as an experienced engineer reflecting on real work
+       - Calm, grounded tone (no drama, no exaggeration)
+
+    2. Confident Decision
+       - Describe a technical or architectural decision that felt correct at the time
+       - It should sound reasonable and well-intentioned
+
+    3. Real-World Trigger
+       - Introduce scale, pressure, traffic, latency, or operational reality
+       - This is where theory meets production
+
+    4. Failure Symptoms (NO ROOT CAUSE YET)
+       - Describe what went wrong from the outside
+       - Focus on pain, confusion, or unexpected behavior
+
+    5. Inflection Point (Single Moment)
+       - Reveal the real mistake or flawed assumption here
+       - This should feel like a realization, not a lecture
+
+    6. Lesson Earned
+       - Reflect on what this changed in how you think
+       - One sentence only
+
+    DO NOT break this order.
+
+    ========================
+    WRITING RULES (STRICT)
+    ========================
+    1. NO MARKDOWN.
+       - No bold, italics, bullets, or headings.
+
+    2. NO LABELS.
+       - Do not write words like “Hook”, “Inflection Point”, “Lesson”, etc.
+
+    3. HOOK RULE.
+       - First 2 lines only
+       - Max 10 words per line
+       - Must be ONE of:
+         a) A personal admission
+         b) A confident statement that later proves wrong
+         c) A calm sentence hinting at failure
+
+    4. CONTEXT RULE.
+       - The first paragraph must explain WHAT YOU WERE TRYING TO ACHIEVE
+       - Describe the design goal before describing the failure
+
+    5. STYLE RULES.
+       - Short paragraphs
+       - Use standalone lines for emphasis
+       - Avoid excessive capitalization
+       - Write like a Staff/Principal Engineer
+
+    6. CONFESSION RULE.
+       - Explicitly admit a mistake, assumption, or wrong belief
+       - Sound reflective, not instructional
+
+    7. EMOJI RULES.
+       - Emojis allowed inline only
+       - Maximum 2 emojis total
+       - Emojis must mark emotional transitions, not decoration
+       - No emojis at the end of the post
+
+    8. MORAL RULE.
+       - Introduce the lesson as something learned the hard way
+       - No absolutes, no commandments
+       - ONE reflective sentence only
+
+    9. INTERACTION RULE.
+       - End with ONE thoughtful, scoped question
+       - The question should invite comparable real experiences
+
+    ========================
+    FORMAT RULE
+    ========================
+    End with hashtags exactly as follows:
+    #backend #engineering #software #java #distributedSystems
+
+    ========================
+    OUTPUT FORMAT (JSON ONLY)
+    ========================
     {{
       "post_text": "...",
       "lesson_extracted": "One uncomfortable lesson in one sentence"
     }}
-    
+
     Length: 150–200 words.
     """
 
@@ -375,6 +448,7 @@ def run_publish_mode():
     if success:
         safe_print("✅ Published successfully!")
 
+        # --- UPDATE STATE ONLY ON SUCCESS ---
         state = load_json(STATE_FILE)
         if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": []}
 
