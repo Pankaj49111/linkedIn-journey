@@ -1,0 +1,6 @@
+{
+  "post_text": "I wanted peace. I hated pagers buzzing.\nWe decided to measure true customer pain.\n\nI convinced the team to prioritize Service Level Indicators  over generic host metrics. We aggressively tuned our latency alerts.\n\nP99 could climb, but only a sustained RPS drop would trigger PagerDuty. We aimed for zero alert fatigue.\n\nThen the holiday traffic hit. Load instantly tripled. Our primary service dashboard looked surprisingly flat\u2014RPS holding steady. No alerts fired. Victory? \ud83d\ude12\n\nBut customer success reported massive checkout failures. Our SLI  was lying to us.\n\nThe upstream proxy retries were masking the systemic failures. The retries succeeded just enough to keep the aggregate RPS green.\n\nYet, every customer saw five-second timeouts before the proxy stepped in. We had optimized away the symptom of failure.\n\nThe silence was deafening, and completely wrong.\n\nWhat this taught me \ud83d\udc47 When aggregate stability metrics are driven by implicit retry loops, they obscure critical user-facing tail latency failures.\n\n#backend #engineering #software #java",
+  "lesson_extracted": "High availability metrics driven by client-side retries often hide catastrophic latency spikes from your alerting platform.",
+  "meta_theme": "THE METRIC LIE \ud83d\udcca",
+  "meta_tech": "Alert Fatigue & SLIs"
+}
