@@ -156,9 +156,6 @@ def post_to_linkedin(urn, text):
         safe_print(f"❌ Network Error: {e}")
         return False
 
-# =============================
-# QUALITY GATE (UPDATED 🚀)
-# =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
 
@@ -253,9 +250,10 @@ def generate_with_review(client, prompt, forbidden_phrases):
         prompt += """
         Rewrite with:
         - One explicit wrong belief stated in first person
-        - One moment of confusion or contradiction before the realization
+        - One moment of confusion before the realization
         - One concrete human or operational consequence
-        - Insight discovered through struggle, not explained
+        - Insight discovered, not explained
+        - Place exactly ONE sentence AFTER the line "The Moral 👇"
         """
 
     safe_print("❌ Failed strict quality gate twice.")
