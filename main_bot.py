@@ -39,6 +39,9 @@ ACTS = [
     {"name": "ACT VI – Judgment, Restraint, Engineering Wisdom", "max_episodes": 6},
 ]
 
+# =============================
+# TECH FOCUS AREAS
+# =============================
 TECH_FOCUS_AREAS = {
     "distributed_data": ["Cassandra", "CQRS", "Schema Evolution"],
     "caching": ["Redis", "Cache Invalidation", "Distributed Locking"],
@@ -48,6 +51,9 @@ TECH_FOCUS_AREAS = {
     "ownership": ["API Contracts", "Dependency Drift", "Legacy Migrations"]
 }
 
+# =============================
+# THEMES
+# =============================
 THEMES = [
     {"type": "THE ARCHITECTURAL TRAP 🏗️", "tone": "Humble, analytical", "allowed_tech": ["distributed_data", "caching", "async"]},
     {"type": "THE HUMAN ALGORITHM 🤝", "tone": "Reflective, empathetic", "allowed_tech": ["ownership", "async", "observability"]},
@@ -69,15 +75,11 @@ def safe_print(text):
 def load_json(path):
     if not os.path.exists(path):
         return {
-            "act_index": 0,
-            "episode": 1,
-            "previous_lessons": [],
-            "last_themes": [],
-            "last_tech": []
+            "act_index": 0, "episode": 1, "previous_lessons": [],
+            "last_themes": [], "last_tech": []
         }
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        with open(path, "r", encoding="utf-8") as f: return json.load(f)
     except Exception:
         return { "act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": [] }
 
@@ -86,17 +88,11 @@ def save_json(path, data):
         json.dump(data, f, indent=2, ensure_ascii=True)
 
 def clean_text(text, forbidden_phrases=None):
-    if not text:
-        return ""
-
-    # 1. Clean Markdown first so regex catches "Hook:" even if it was "**Hook:**"
-    text = text.replace("*", "")
-
-    # 2. Remove Labels
+    if not text: return ""
+    text = text.replace("*", "") # Remove bolding first
     text = re.sub(r'[\(\[].*?[\)\]]', '', text)
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
 
-    # 3. Scrub Context Leaks
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             text = re.sub(re.escape(phrase), '', text, flags=re.IGNORECASE)
@@ -104,7 +100,6 @@ def clean_text(text, forbidden_phrases=None):
     return text.strip()
 
 def select_theme_and_tech(state):
-    # Safe fallback if keys are missing in old state files
     last_themes = state.get("last_themes", [])
     last_tech = state.get("last_tech", [])
 
@@ -115,11 +110,13 @@ def select_theme_and_tech(state):
     for cat in theme["allowed_tech"]:
         tech_pool.extend(TECH_FOCUS_AREAS.get(cat, []))
 
-    # Filter tech
     final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]] or tech_pool
 
     return theme, random.choice(final_tech_pool)
 
+# =============================
+# LINKEDIN UTILS
+# =============================
 def get_user_urn():
     try:
         url = "https://api.linkedin.com/v2/userinfo"
@@ -138,10 +135,7 @@ def post_to_linkedin(urn, text):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # Append Hashtags
     text = text.strip() + FIXED_HASHTAGS
-
-    # Safety Trim
     if len(text) > 2800: text = text[:2797] + "..."
 
     payload = {
@@ -162,27 +156,31 @@ def post_to_linkedin(urn, text):
         safe_print(f"❌ Network Error: {e}")
         return False
 
+# =============================
+# QUALITY GATE
+# =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
-
 FAIL if ANY are true:
-1. No explicit wrong belief admitted by the narrator.
-2. No explicit contradiction ("this makes no sense" moment).
-3. Insight feels polished instead of discovered.
-4. Narrator is not visibly confused at some point.
-5. Moral is missing, longer than one sentence, or sounds like documentation.
-6. Tone feels like content creation or explanation.
-7. Career stages, Acts, or Themes are referenced explicitly.
+1. No explicit wrong belief admitted.
+2. No explicit contradiction moment.
+3. Insight feels polished, not discovered.
+4. Narrator is not visibly confused/lost.
+5. Moral is missing or sounds like documentation.
+6. Tone is "Influencer" (should be Engineer).
+7. Explicit mentions of Act/Theme names.
 
 PASS_9_PLUS only if:
-- Confidence → confusion → realization is felt.
-- Insight is earned through contradiction.
-- Moral carries human consequence.
+- Confidence → Confusion → Realization arc is strong.
+- Insight is earned.
+- Moral is human, not just technical.
 
-Respond with exactly:
-PASS_9_PLUS or FAIL
+Respond exactly: PASS_9_PLUS or FAIL
 """
 
+# =============================
+# PROMPT BUILDER
+# =============================
 def build_prompt(act, episode, theme, tech, prev_lessons):
     return f"""
 Role:
@@ -202,7 +200,7 @@ MANDATORY NARRATIVE SPINE:
 6. INFLECTION (realization)
 7. LESSON (one sentence)
 
-CONFESSION RULE (MANDATORY):
+CONFESSION RULE:
 Explicitly state one belief or assumption you personally held that proved wrong.
 
 RULES:
@@ -211,12 +209,9 @@ RULES:
 - First 2 lines = hook (≤10 words)
 - Emojis ≤ 2, inline only
 - Stay inside the moment; no retrospectives
-- Do NOT explain; reflect only
 
 STRICT FORMAT:
-- End the lesson with exactly:
-  "The Moral 👇"
-  followed by ONE sentence.
+- End lesson exactly with: "The Moral 👇"
 - Do NOT add hashtags.
 - Do NOT use markdown.
 
@@ -229,6 +224,9 @@ OUTPUT JSON ONLY:
 Length: 150–200 words
 """
 
+# =============================
+# GENERATE + REVIEW LOOP
+# =============================
 def generate_with_review(client, prompt, forbidden_phrases):
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
@@ -252,24 +250,31 @@ def generate_with_review(client, prompt, forbidden_phrases):
             content["post_text"] = post
             return content
 
-        prompt += """
-        Rewrite with:
-        - A clearer wrong belief
-        - A sharper contradiction moment
-        - Less polish, more discovery
-        """
+        prompt += "\n\nRewrite: clearer wrong belief, sharper contradiction, less polish."
 
     safe_print("❌ Failed strict quality gate twice.")
-    sys.exit(1) # Exit logic if draft fails
+    sys.exit(1)
 
+# =============================
+# DRAFT MODE
+# =============================
 def run_draft_mode():
     state = load_json(STATE_FILE)
     client = genai.Client(api_key=GEMINI_KEY)
 
+    # 1. Select Content
     act = ACTS[state["act_index"]]
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
+    # 2. LOG THE CHOICES (Visible to User)
+    print("\n" + "="*40)
+    safe_print(f"🎭 ACT:   {act['name']}")
+    safe_print(f"🎰 THEME: {theme['type']}")
+    safe_print(f"🛠️ TECH:  {tech}")
+    print("="*40 + "\n")
+
+    # 3. Build & Generate
     prompt = build_prompt(act, state["episode"], theme, tech, prev)
     forbidden = [act["name"], theme["type"]]
 
@@ -278,8 +283,13 @@ def run_draft_mode():
     content["meta_tech"] = tech
 
     save_json(DRAFT_FILE, content)
-    safe_print("✅ Draft generated and saved.")
 
+    print("\n✅ DRAFT SAVED:")
+    safe_print(content["post_text"][:150] + "...")
+
+# =============================
+# PUBLISH MODE
+# =============================
 def run_publish_mode():
     draft = load_json(DRAFT_FILE)
     if not draft:
@@ -302,7 +312,7 @@ def run_publish_mode():
     state.setdefault("last_themes", []).append(draft["meta_theme"])
     state.setdefault("last_tech", []).append(draft["meta_tech"])
 
-    # Slice History (Keep last 5 only)
+    # Trim History
     state["last_themes"] = state["last_themes"][-5:]
     state["last_tech"] = state["last_tech"][-5:]
 
@@ -316,6 +326,9 @@ def run_publish_mode():
     os.remove(DRAFT_FILE)
     safe_print("🚀 Published successfully.")
 
+# =============================
+# ENTRYPOINT
+# =============================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["draft", "publish"], required=True)
