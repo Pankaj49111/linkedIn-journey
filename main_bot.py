@@ -25,6 +25,7 @@ DRAFT_FILE = "current_draft.json"
 IMAGE_FOLDER = "images"
 
 LINKEDIN_API_VERSION = "202411"
+FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
 # ACTS (CAREER ARC)
@@ -38,71 +39,22 @@ ACTS = [
     {"name": "ACT VI – Judgment, Restraint, Engineering Wisdom", "max_episodes": 6},
 ]
 
-# =============================
-# TECH FOCUS AREAS (CATEGORIZED)
-# =============================
 TECH_FOCUS_AREAS = {
-    "distributed_data": [
-        "Cassandra (Consistency vs Availability)",
-        "CQRS & Dual Writes",
-        "Schema Evolution & Backfills"
-    ],
-    "caching": [
-        "Redis & Distributed Locking",
-        "Cache Invalidation & TTLs"
-    ],
-    "async": [
-        "Kafka Consumer Lag & Retries",
-        "At-Least-Once Delivery & Idempotency"
-    ],
-    "infra": [
-        "Autoscaling & Cold Starts",
-        "Thread Pools & Resource Exhaustion"
-    ],
-    "observability": [
-        "Misleading Metrics & Green Dashboards",
-        "Alert Fatigue & SLIs"
-    ],
-    "ownership": [
-        "Shared Services & API Contracts",
-        "Platform vs Product Boundaries"
-    ]
+    "distributed_data": ["Cassandra", "CQRS", "Schema Evolution"],
+    "caching": ["Redis", "Cache Invalidation", "Distributed Locking"],
+    "async": ["Kafka Consumer Lag", "Idempotency", "Event Ordering"],
+    "infra": ["Kubernetes OOMs", "Cold Starts", "Connection Pooling"],
+    "observability": ["Misleading Metrics", "Alert Fatigue", "SLIs/SLOs"],
+    "ownership": ["API Contracts", "Dependency Drift", "Legacy Migrations"]
 }
 
-# =============================
-# THEMES WITH COMPATIBILITY
-# =============================
 THEMES = [
-    {
-        "type": "THE ARCHITECTURAL TRAP 🏗️",
-        "tone": "Humble, analytical",
-        "allowed_tech": ["distributed_data", "caching", "async"]
-    },
-    {
-        "type": "THE HUMAN ALGORITHM 🤝",
-        "tone": "Reflective, empathetic",
-        "allowed_tech": ["ownership", "async", "observability"]
-    },
-    {
-        "type": "THE CRASH 🚨",
-        "tone": "Calm urgency",
-        "allowed_tech": ["infra", "async", "caching"]
-    },
-    {
-        "type": "THE FALSE FIX 🔧",
-        "tone": "Analytical, corrective",
-        "allowed_tech": ["caching", "infra"]
-    },
-    {
-        "type": "THE METRIC LIE 📊",
-        "tone": "Skeptical, reflective",
-        "allowed_tech": ["observability"]
-    },
-    {
-        "type": "THE OWNERSHIP GAP 🧩",
-        "tone": "Leadership-focused",
-        "allowed_tech": ["ownership"]
-    }
+    {"type": "THE ARCHITECTURAL TRAP 🏗️", "tone": "Humble, analytical", "allowed_tech": ["distributed_data", "caching", "async"]},
+    {"type": "THE HUMAN ALGORITHM 🤝", "tone": "Reflective, empathetic", "allowed_tech": ["ownership", "async", "observability"]},
+    {"type": "THE CRASH 🚨", "tone": "Calm urgency", "allowed_tech": ["infra", "async", "caching"]},
+    {"type": "THE FALSE FIX 🔧", "tone": "Analytical, corrective", "allowed_tech": ["caching", "infra"]},
+    {"type": "THE METRIC LIE 📊", "tone": "Skeptical, reflective", "allowed_tech": ["observability"]},
+    {"type": "THE OWNERSHIP GAP 🧩", "tone": "Leadership-focused", "allowed_tech": ["ownership"]}
 ]
 
 # =============================
@@ -110,194 +62,64 @@ THEMES = [
 # =============================
 def safe_print(text):
     try:
-        print(text.encode('utf-8', 'replace').decode('utf-8'))
+        print(text.encode("utf-8", "replace").decode("utf-8"))
     except Exception:
-        print("Scrubbed output due to encoding error.")
+        print("Output scrubbed.")
 
 def load_json(path):
-    if not os.path.exists(path): return None
+    if not os.path.exists(path):
+        return {
+            "act_index": 0,
+            "episode": 1,
+            "previous_lessons": [],
+            "last_themes": [],
+            "last_tech": []
+        }
     try:
-        with open(path, "r", encoding="utf-8") as f: return json.load(f)
-    except Exception: return None
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return { "act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": [] }
 
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=True)
 
-def clean_text(text):
-    if not text: return ""
+def clean_text(text, forbidden_phrases=None):
+    if not text:
+        return ""
+
+    # 1. Clean Markdown first so regex catches "Hook:" even if it was "**Hook:**"
+    text = text.replace("*", "")
+
+    # 2. Remove Labels
     text = re.sub(r'[\(\[].*?[\)\]]', '', text)
-    text = re.sub(r'(?i)^(Hook|Lesson|Moral|Reflection):', '', text, flags=re.MULTILINE)
-    text = text.replace('*', '')
+    text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
+
+    # 3. Scrub Context Leaks
+    if forbidden_phrases:
+        for phrase in forbidden_phrases:
+            text = re.sub(re.escape(phrase), '', text, flags=re.IGNORECASE)
+
     return text.strip()
 
-def get_image_from_folder():
-    if not os.path.exists(IMAGE_FOLDER): return None
-    valid_extensions = ('.png', '.jpg', '.jpeg', '.gif')
-    for file in os.listdir(IMAGE_FOLDER):
-        if file.lower().endswith(valid_extensions):
-            return os.path.join(IMAGE_FOLDER, file)
-    return None
-
-# =============================
-# SELECTION LOGIC
-# =============================
 def select_theme_and_tech(state):
+    # Safe fallback if keys are missing in old state files
     last_themes = state.get("last_themes", [])
     last_tech = state.get("last_tech", [])
 
-    eligible_themes = [t for t in THEMES if t["type"] not in last_themes[-3:]]
-    if not eligible_themes: eligible_themes = THEMES
-
+    eligible_themes = [t for t in THEMES if t["type"] not in last_themes[-3:]] or THEMES
     theme = random.choice(eligible_themes)
 
-    allowed_categories = theme["allowed_tech"]
     tech_pool = []
-    for cat in allowed_categories:
+    for cat in theme["allowed_tech"]:
         tech_pool.extend(TECH_FOCUS_AREAS.get(cat, []))
 
-    final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]]
-    if not final_tech_pool: final_tech_pool = tech_pool
+    # Filter tech
+    final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]] or tech_pool
 
-    tech = random.choice(final_tech_pool)
-    return theme, tech
+    return theme, random.choice(final_tech_pool)
 
-# =============================
-# QUALITY GATE (STRICT)
-# =============================
-QUALITY_GATE_PROMPT = """
-Role:
-You are a critical LinkedIn editor evaluating whether this post is
-publication-ready for a Staff+ backend engineer.
-
-Your job is NOT to improve the post.
-Your job is to decide if it is excellent.
-
-FAIL the post if ANY of the following are true:
-
-1. The hook is informative but not experiential.
-2. The lesson is correct but feels obvious or polished.
-3. The failure feels explainable without emotional confusion.
-4. The narrator does not appear visibly lost or uncertain at any point.
-5. The realization feels fully formed instead of emerging from contradiction or confusion.
-6. The post sounds like reflection without struggle.
-7. Mid-level engineers can read it, but senior engineers would not pause on it.
-
-PASS_9_PLUS only if:
-- The reader feels confidence → confusion → realization.
-- The insight feels earned, not presented.
-- The post would not embarrass a Staff+ engineer to repost.
-
-OUTPUT RULE (STRICT):
-Respond with exactly ONE token:
-PASS_9_PLUS or FAIL
-"""
-
-# =============================
-# PROMPT BUILDER
-# =============================
-def build_prompt(act, episode, theme, tech, prev_lessons):
-    return f"""
-Role:
-You are a Senior Backend Engineer reflecting on real production experience.
-You write like someone who has been wrong in production before.
-
-Current Life Stage:
-{act['name']} (Episode {episode})
-
-Previous Lessons:
-{prev_lessons}
-
-Context:
-- Theme: {theme['type']}
-- Tone: {theme['tone']}
-- Tech Focus: {tech}
-
-AUDIENCE & SIGNALING (INCLUSIVITY RULE):
-Write so that:
-- Mid-level engineers can understand the failure.
-- Senior engineers recognize the mistake.
-- Staff-level engineers respect the framing.
-Do not explicitly teach or explain.
-
-MANDATORY NARRATIVE SPINE:
-1. Identity & humility (Grounded, no drama)
-2. Confident decision (Reasonable at the time)
-3. Real-world trigger (Traffic/Scale/Pressure)
-4. Failure symptoms (Pain before root cause)
-5. Inflection point (Standalone line)
-6. Lesson earned (One reflective sentence)
-
-RULES:
-- No paragraph > 2 lines (Visual Flow)
-- Active voice ("I saw" not "It was seen")
-- First 2 lines = hook (≤10 words)
-- Emojis ≤ 2, inline only
-- Context Rule: explain design goal first
-
-MORAL:
-Use ONE:
-- The Moral 👇
-- What this taught me 👇
-
-FORMAT:
-End with:
-#backend #engineering #software #java
-
-OUTPUT JSON ONLY:
-{{
-  "post_text": "...",
-  "lesson_extracted": "One uncomfortable lesson in one sentence"
-}}
-
-Length: 150–200 words
-"""
-
-# =============================
-# GENERATE + REVIEW LOOP
-# =============================
-def generate_with_review(client, prompt):
-    for attempt in range(2):
-        safe_print(f"🔄 Generation Attempt {attempt + 1}...")
-
-        response = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=prompt,
-            config={"response_mime_type": "application/json"}
-        )
-        content = json.loads(response.text)
-        post = clean_text(content["post_text"])
-
-        # Editor Check
-        review_resp = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
-        ).text.strip()
-
-        safe_print(f"🕵️ Editor Verdict: {review_resp}")
-
-        # STRICT CHECK FOR "PASS_9_PLUS"
-        if review_resp.strip() == "PASS_9_PLUS":
-            content["post_text"] = post
-            return content
-
-        # REWRITE INSTRUCTION (TARGETED)
-        prompt += """
-        Rewrite with:
-        - A sharper, more experiential hook (felt, not explained)
-        - One explicit moment of confusion or contradiction before the realization
-        - A clearer emotional gap between confidence and failure
-        - Less polish in the insight, more discovery
-        """
-
-    # Fallback to the last attempt if it fails twice,
-    # but print a warning (in real prod you might want to exit(1))
-    safe_print("⚠️ Warning: Published draft failed strict quality gate twice.")
-    return content
-
-# =============================
-# LINKEDIN UTILS
-# =============================
 def get_user_urn():
     try:
         url = "https://api.linkedin.com/v2/userinfo"
@@ -307,57 +129,7 @@ def get_user_urn():
         return resp.json().get("sub")
     except Exception: return None
 
-def upload_image_to_linkedin(urn, image_path):
-    safe_print("Uploading image...")
-    init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-    headers = {
-        'Authorization': f'Bearer {LINKEDIN_TOKEN}',
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': LINKEDIN_API_VERSION,
-        'X-Restli-Protocol-Version': '2.0.0'
-    }
-    payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
-
-    try:
-        resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
-        data = resp.json().get('value') or resp.json()
-        upload_url = data.get('uploadUrl')
-        image_urn = data.get('image') or data.get('imageUrn')
-
-        with open(image_path, 'rb') as f:
-            requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
-
-        return image_urn
-    except Exception as e:
-        safe_print(f"❌ Upload Exception: {e}")
-        return None
-
-def poll_image_status(image_urn):
-    if not image_urn: return False
-    encoded_urn = urllib.parse.quote(image_urn)
-    url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
-    headers = {
-        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
-        "LinkedIn-Version": LINKEDIN_API_VERSION,
-        "X-Restli-Protocol-Version": "2.0.0"
-    }
-
-    deadline = time.time() + 60
-    while time.time() < deadline:
-        try:
-            resp = requests.get(url, headers=headers, timeout=15)
-            data = resp.json()
-            status = None
-            if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
-            else: status = data.get("status") or data.get("processingState")
-
-            if status == "AVAILABLE": return True
-            if status in ["FAILED", "ERROR"]: return False
-            time.sleep(2)
-        except Exception: time.sleep(2)
-    return False
-
-def post_to_linkedin(urn, text, image_asset=None):
+def post_to_linkedin(urn, text):
     url = "https://api.linkedin.com/rest/posts"
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -366,7 +138,10 @@ def post_to_linkedin(urn, text, image_asset=None):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # Trim to safety limit
+    # Append Hashtags
+    text = text.strip() + FIXED_HASHTAGS
+
+    # Safety Trim
     if len(text) > 2800: text = text[:2797] + "..."
 
     payload = {
@@ -378,114 +153,175 @@ def post_to_linkedin(urn, text, image_asset=None):
         "isReshareDisabledByAuthor": False
     }
 
-    if image_asset:
-        payload["content"] = {"media": {"title": "Tech Insight", "id": image_asset}}
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+        if resp.status_code == 201: return True
+        safe_print(f"❌ LinkedIn Error: {resp.text}")
+        return False
+    except Exception as e:
+        safe_print(f"❌ Network Error: {e}")
+        return False
 
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    if resp.status_code == 201: return True
+QUALITY_GATE_PROMPT = """
+Role: Critical Staff+ Editor.
 
-    safe_print(f"❌ Post Failed: {resp.text}")
-    return False
+FAIL if ANY are true:
+1. No explicit wrong belief admitted by the narrator.
+2. No explicit contradiction ("this makes no sense" moment).
+3. Insight feels polished instead of discovered.
+4. Narrator is not visibly confused at some point.
+5. Moral is missing, longer than one sentence, or sounds like documentation.
+6. Tone feels like content creation or explanation.
+7. Career stages, Acts, or Themes are referenced explicitly.
 
-# =============================
-# MAIN LOGIC
-# =============================
+PASS_9_PLUS only if:
+- Confidence → confusion → realization is felt.
+- Insight is earned through contradiction.
+- Moral carries human consequence.
+
+Respond with exactly:
+PASS_9_PLUS or FAIL
+"""
+
+def build_prompt(act, episode, theme, tech, prev_lessons):
+    return f"""
+Role:
+You are a Senior Backend Engineer reflecting on a real production incident.
+
+INVISIBLE CONTEXT (DO NOT PRINT):
+- Life Stage: {act['name']}
+- Theme: {theme['type']}
+- Tech Focus: {tech}
+
+MANDATORY NARRATIVE SPINE:
+1. Identity & humility
+2. Confident decision
+3. Real-world trigger
+4. Failure symptoms
+5. CONTRADICTION (things don’t make sense)
+6. INFLECTION (realization)
+7. LESSON (one sentence)
+
+CONFESSION RULE (MANDATORY):
+Explicitly state one belief or assumption you personally held that proved wrong.
+
+RULES:
+- No paragraph > 2 lines
+- Active voice
+- First 2 lines = hook (≤10 words)
+- Emojis ≤ 2, inline only
+- Stay inside the moment; no retrospectives
+- Do NOT explain; reflect only
+
+STRICT FORMAT:
+- End the lesson with exactly:
+  "The Moral 👇"
+  followed by ONE sentence.
+- Do NOT add hashtags.
+- Do NOT use markdown.
+
+OUTPUT JSON ONLY:
+{{
+  "post_text": "...",
+  "lesson_extracted": "One uncomfortable lesson in one sentence"
+}}
+
+Length: 150–200 words
+"""
+
+def generate_with_review(client, prompt, forbidden_phrases):
+    for attempt in range(2):
+        safe_print(f"🔄 Generation Attempt {attempt + 1}")
+
+        response = client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=prompt,
+            config={"response_mime_type": "application/json"}
+        )
+        content = json.loads(response.text)
+        post = clean_text(content["post_text"], forbidden_phrases)
+
+        verdict = client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
+        ).text.strip()
+
+        safe_print(f"🕵️ Editor Verdict: {verdict}")
+
+        if verdict == "PASS_9_PLUS":
+            content["post_text"] = post
+            return content
+
+        prompt += """
+        Rewrite with:
+        - A clearer wrong belief
+        - A sharper contradiction moment
+        - Less polish, more discovery
+        """
+
+    safe_print("❌ Failed strict quality gate twice.")
+    sys.exit(1) # Exit logic if draft fails
+
 def run_draft_mode():
-    safe_print("🌅 STARTING DRAFT MODE...")
     state = load_json(STATE_FILE)
-    if not state:
-        state = {
-            "act_index": 0, "episode": 1, "previous_lessons": [],
-            "last_themes": [], "last_tech": []
-        }
-
     client = genai.Client(api_key=GEMINI_KEY)
 
     act = ACTS[state["act_index"]]
     theme, tech = select_theme_and_tech(state)
-    prev_lessons = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
+    prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    safe_print(f"🎭 Act: {act['name']}")
-    safe_print(f"🎰 Theme: {theme['type']}")
-    safe_print(f"🛠️ Tech: {tech}")
+    prompt = build_prompt(act, state["episode"], theme, tech, prev)
+    forbidden = [act["name"], theme["type"]]
 
-    prompt = build_prompt(act, state["episode"], theme, tech, prev_lessons)
-    content = generate_with_review(client, prompt)
-
-    # Save Meta for Rotation Logic (consumed on publish)
+    content = generate_with_review(client, prompt, forbidden)
     content["meta_theme"] = theme["type"]
     content["meta_tech"] = tech
 
     save_json(DRAFT_FILE, content)
-
-    print("\n" + "="*50)
-    safe_print("✅ DRAFT GENERATED & SAVED")
-    print("="*50)
-    safe_print(content["post_text"])
+    safe_print("✅ Draft generated and saved.")
 
 def run_publish_mode():
-    safe_print("🚀 STARTING PUBLISH MODE...")
     draft = load_json(DRAFT_FILE)
     if not draft:
-        safe_print("⚠️ No draft found! Run --mode draft first.")
+        safe_print("⚠️ No draft found.")
         return
 
     urn = get_user_urn()
     if not urn:
-        safe_print("❌ CRITICAL: Invalid Token.")
-        exit(1)
+        safe_print("❌ Invalid LinkedIn token.")
+        return
 
-    # Image Handling
-    media_urn = None
-    image_path = get_image_from_folder()
-    if image_path:
-        safe_print(f"📸 Found image: {image_path}")
-        media_urn = upload_image_to_linkedin(urn, image_path)
-        if media_urn and poll_image_status(media_urn):
-            safe_print("✅ Image Ready.")
-        else:
-            safe_print("⚠️ Image failed. Posting text only.")
-            media_urn = None
+    success = post_to_linkedin(urn, draft["post_text"])
+    if not success:
+        return
 
-    success = post_to_linkedin(urn, draft["post_text"], media_urn)
+    state = load_json(STATE_FILE)
 
-    if success:
-        safe_print("✅ Published successfully!")
+    # Update History
+    state["previous_lessons"].append(draft["lesson_extracted"])
+    state.setdefault("last_themes", []).append(draft["meta_theme"])
+    state.setdefault("last_tech", []).append(draft["meta_tech"])
 
-        # --- UPDATE STATE (Commit Rotation & Episode) ---
-        state = load_json(STATE_FILE)
-        if not state: state = {"act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": []}
+    # Slice History (Keep last 5 only)
+    state["last_themes"] = state["last_themes"][-5:]
+    state["last_tech"] = state["last_tech"][-5:]
 
-        state["previous_lessons"].append(draft["lesson_extracted"])
-        state["episode"] += 1
+    # Advance Episode
+    state["episode"] += 1
+    if state["episode"] > ACTS[state["act_index"]]["max_episodes"]:
+        state["episode"] = 1
+        state["act_index"] = (state["act_index"] + 1) % len(ACTS)
 
-        # Update Rotation History
-        if "meta_theme" in draft: state.setdefault("last_themes", []).append(draft["meta_theme"])
-        if "meta_tech" in draft: state.setdefault("last_tech", []).append(draft["meta_tech"])
-
-        # Trim History
-        state["last_themes"] = state["last_themes"][-5:]
-        state["last_tech"] = state["last_tech"][-5:]
-
-        # Handle Act Progression
-        current_act = ACTS[state["act_index"]]
-        if state["episode"] > current_act["max_episodes"]:
-            state["act_index"] = (state["act_index"] + 1) % len(ACTS)
-            state["episode"] = 1
-
-        save_json(STATE_FILE, state)
-
-        # Cleanup
-        os.remove(DRAFT_FILE)
-        if image_path: os.remove(image_path)
-    else:
-        safe_print("❌ Final Post Failed.")
-        exit(1)
+    save_json(STATE_FILE, state)
+    os.remove(DRAFT_FILE)
+    safe_print("🚀 Published successfully.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["draft", "publish"], required=True)
     args = parser.parse_args()
 
-    if args.mode == "draft": run_draft_mode()
-    elif args.mode == "publish": run_publish_mode()
+    if args.mode == "draft":
+        run_draft_mode()
+    elif args.mode == "publish":
+        run_publish_mode()

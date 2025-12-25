@@ -1,6 +1,0 @@
-{
-  "post_text": "The primary index felt sluggish. We needed speed.\nI pushed for the dual-write CQRS architecture: SQL for the source of truth, Elasticsearch for fast reads. Decoupling felt like maturity.\n\nThis was Act I confidence. Everything worked fine in integration testing.\nThen the holiday traffic spike hit the core provisioning pipeline. High contention, steady pressure.\n\nWrites succeeded universally in the primary store. Postgres confirmed commit.\nBut the user UI kept showing stale data for minutes. Why was the application reporting 200 OKs when the user experience was failing? \ud83e\udd2f\n\nWe were optimizing for speed in the write path by hiding the fact that the secondary write occasionally dropped connections under saturation.\nOur metrics showed high availability, but the functional data consistency was fractured.\n\nWe didn't have eventual consistency; we had eventual failure detection.\n\nThe Moral \ud83d\udc47\nThe cost of validating transactional integrity across heterogeneous stores is rarely covered by the simple latency benefit.",
-  "lesson_extracted": "When implementing dual writes, the operational complexity of guaranteeing transactional atomicity always exceeds the initial architectural gain.",
-  "meta_theme": "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
-  "meta_tech": "CQRS & Dual Writes"
-}
