@@ -1,0 +1,6 @@
+{
+  "post_text": "I am not infallible. Pride causes crashes.\nI owned our primary service cache layer, and Redis CPU keys thrashed too often. I confidently doubled the default TTL from 60s to 120s. Easy fix, right?\n\nMidnight alerts started immediately. Users saw stale data, then timeouts. The ops team paged our Director. I believed raising the cache TTL was always a safe, easy lever for performance.\n\nThe CPU load didn't drop; it spiked higher. That made zero sense. TTL is longer, requests should be fewer, but latency shot up everywhere. One developer missed his kid's birthday party due to the emergency rollback.\n\nThe longer TTL meant write operations competed for precious CPU cycles before expiration, overwhelming the single-threaded Redis during peak. We optimized reads, ignoring the true write bottleneck.\n\nTrue performance optimization demands understanding the internal concurrency models of your storage, not just the access patterns. The Moral \ud83d\udc47",
+  "lesson_extracted": "True performance optimization demands understanding the internal concurrency models of your storage, not just the access patterns.",
+  "meta_theme": "THE FALSE FIX \ud83d\udd27",
+  "meta_tech": "Redis"
+}
