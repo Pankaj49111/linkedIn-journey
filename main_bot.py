@@ -114,6 +114,14 @@ def select_theme_and_tech(state):
 
     return theme, random.choice(final_tech_pool)
 
+def get_image_from_folder():
+    if not os.path.exists(IMAGE_FOLDER): return None
+    valid_extensions = ('.png', '.jpg', '.jpeg', '.gif')
+    for file in os.listdir(IMAGE_FOLDER):
+        if file.lower().endswith(valid_extensions):
+            return os.path.join(IMAGE_FOLDER, file)
+    return None
+
 # =============================
 # LINKEDIN UTILS
 # =============================
@@ -126,7 +134,57 @@ def get_user_urn():
         return resp.json().get("sub")
     except Exception: return None
 
-def post_to_linkedin(urn, text):
+def upload_image_to_linkedin(urn, image_path):
+    safe_print("Uploading image...")
+    init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
+    headers = {
+        'Authorization': f'Bearer {LINKEDIN_TOKEN}',
+        'Content-Type': 'application/json',
+        'LinkedIn-Version': LINKEDIN_API_VERSION,
+        'X-Restli-Protocol-Version': '2.0.0'
+    }
+    payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
+
+    try:
+        resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
+        data = resp.json().get('value') or resp.json()
+        upload_url = data.get('uploadUrl')
+        image_urn = data.get('image') or data.get('imageUrn')
+
+        with open(image_path, 'rb') as f:
+            requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
+
+        return image_urn
+    except Exception as e:
+        safe_print(f"❌ Upload Exception: {e}")
+        return None
+
+def poll_image_status(image_urn):
+    if not image_urn: return False
+    encoded_urn = urllib.parse.quote(image_urn)
+    url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
+    headers = {
+        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
+        "LinkedIn-Version": LINKEDIN_API_VERSION,
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        try:
+            resp = requests.get(url, headers=headers, timeout=15)
+            data = resp.json()
+            status = None
+            if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
+            else: status = data.get("status") or data.get("processingState")
+
+            if status == "AVAILABLE": return True
+            if status in ["FAILED", "ERROR"]: return False
+            time.sleep(2)
+        except Exception: time.sleep(2)
+    return False
+
+def post_to_linkedin(urn, text, image_asset=None):
     url = "https://api.linkedin.com/rest/posts"
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -135,7 +193,10 @@ def post_to_linkedin(urn, text):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
+    # 1. APPEND HASHTAGS (Programmatic Guarantee)
     text = text.strip() + FIXED_HASHTAGS
+
+    # 2. Defensive Trim
     if len(text) > 2800: text = text[:2797] + "..."
 
     payload = {
@@ -147,6 +208,9 @@ def post_to_linkedin(urn, text):
         "isReshareDisabledByAuthor": False
     }
 
+    if image_asset:
+        payload["content"] = {"media": {"title": "Tech Insight", "id": image_asset}}
+
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
         if resp.status_code == 201: return True
@@ -156,6 +220,9 @@ def post_to_linkedin(urn, text):
         safe_print(f"❌ Network Error: {e}")
         return False
 
+# =============================
+# QUALITY GATE
+# =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
 
@@ -201,7 +268,8 @@ MANDATORY NARRATIVE SPINE:
 7. LESSON (one sentence)
 
 CONFESSION RULE:
-Explicitly state one belief or assumption you personally held that proved wrong.
+State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
+Do NOT write meta-statements like "My explicit wrong belief was...".
 
 RULES:
 - No paragraph > 2 lines
@@ -209,10 +277,16 @@ RULES:
 - First 2 lines = hook (≤10 words)
 - Emojis ≤ 2, inline only
 - Stay inside the moment; no retrospectives
+- Do NOT give advice (e.g. "Avoid doing X"). Just tell the story.
 
 STRICT FORMAT:
-- End lesson exactly with: "The Moral 👇"
-- Do NOT add hashtags.
+- End the post EXACTLY after the Moral sentence.
+- Format:
+  "The Moral 👇"
+  [One sharp sentence]
+  [STOP WRITING HERE]
+
+- Do NOT add hashtags (I will add them).
 - Do NOT use markdown.
 
 OUTPUT JSON ONLY:
@@ -305,7 +379,20 @@ def run_publish_mode():
         safe_print("❌ Invalid LinkedIn token.")
         return
 
-    success = post_to_linkedin(urn, draft["post_text"])
+    # Image Handling
+    media_urn = None
+    image_path = get_image_from_folder()
+    if image_path:
+        safe_print(f"📸 Found image: {image_path}")
+        media_urn = upload_image_to_linkedin(urn, image_path)
+        if media_urn and poll_image_status(media_urn):
+            safe_print("✅ Image Ready.")
+        else:
+            safe_print("⚠️ Image failed. Posting text only.")
+            media_urn = None
+
+    # Post
+    success = post_to_linkedin(urn, draft["post_text"], media_urn)
     if not success:
         return
 
@@ -328,6 +415,7 @@ def run_publish_mode():
 
     save_json(STATE_FILE, state)
     os.remove(DRAFT_FILE)
+    if image_path: os.remove(image_path) # Auto-delete used image
     safe_print("🚀 Published successfully.")
 
 # =============================
