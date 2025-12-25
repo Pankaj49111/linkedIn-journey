@@ -1,6 +1,0 @@
-{
-  "post_text": "I thought scaling was purely a math problem.\nI was aggressively wrong.\n\nOur service handled massive, unpredictable bursts. To achieve tight cost control, I set Kubernetes scale-down timers aggressively low. The goal was swift elasticity and maximum utilization during quiet hours.\n\nThen came the peak load test: a massive traffic surge that quadrupled throughput in under two minutes. We watched the autoscaler perform perfectly.\n\nCPU utilization spiked instantly. Pod counts doubled fast. But the 99th percentile latency went vertical \ud83d\udcc8, exceeding five seconds for over a minute. The new containers were provisioned, but the JVMs inside needed 15 seconds for startup, JIT compilation, and config loading.\n\nWe achieved perfect scaling speed, but zero capacity gain.\n\nThe cost savings achieved during the lulls bought us a P99 outage during the peak.\n\nWhat this taught me \ud83d\udc47\n\n#backend #engineering #software #java",
-  "lesson_extracted": "The provisioning speed of the orchestrator is irrelevant if it is dwarfed by the application's time-to-first-request.",
-  "meta_theme": "THE FALSE FIX \ud83d\udd27",
-  "meta_tech": "Autoscaling & Cold Starts"
-}
