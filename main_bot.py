@@ -157,25 +157,28 @@ def post_to_linkedin(urn, text):
         return False
 
 # =============================
-# QUALITY GATE
+# QUALITY GATE (UPDATED 🚀)
 # =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
+
 FAIL if ANY are true:
-1. No explicit wrong belief admitted.
-2. No explicit contradiction moment.
-3. Insight feels polished, not discovered.
-4. Narrator is not visibly confused/lost.
-5. Moral is missing or sounds like documentation.
-6. Tone is "Influencer" (should be Engineer).
-7. Explicit mentions of Act/Theme names.
+1. No explicit wrong belief admitted by the narrator.
+2. No explicit contradiction where system behavior defies expectation.
+3. The realization is explained diagnostically instead of discovered emotionally.
+4. The failure has no human or operational impact (user-visible damage, on-call pressure, rollback, escalation).
+5. Insight feels polished instead of earned through confusion.
+6. Moral is missing, longer than one sentence, or sounds like documentation.
+7. Tone feels like content creation or explanation.
+8. Career stages, Acts, or Themes are referenced explicitly.
 
 PASS_9_PLUS only if:
-- Confidence → Confusion → Realization arc is strong.
-- Insight is earned.
-- Moral is human, not just technical.
+- Confidence → confusion → realization is felt.
+- Stakes are real and immediate.
+- Moral implies ownership or responsibility.
 
-Respond exactly: PASS_9_PLUS or FAIL
+Respond with exactly:
+PASS_9_PLUS or FAIL
 """
 
 # =============================
@@ -224,9 +227,6 @@ OUTPUT JSON ONLY:
 Length: 150–200 words
 """
 
-# =============================
-# GENERATE + REVIEW LOOP
-# =============================
 def generate_with_review(client, prompt, forbidden_phrases):
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
@@ -250,7 +250,13 @@ def generate_with_review(client, prompt, forbidden_phrases):
             content["post_text"] = post
             return content
 
-        prompt += "\n\nRewrite: clearer wrong belief, sharper contradiction, less polish."
+        prompt += """
+        Rewrite with:
+        - One explicit wrong belief stated in first person
+        - One moment of confusion or contradiction before the realization
+        - One concrete human or operational consequence
+        - Insight discovered through struggle, not explained
+        """
 
     safe_print("❌ Failed strict quality gate twice.")
     sys.exit(1)
@@ -267,7 +273,7 @@ def run_draft_mode():
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # 2. LOG THE CHOICES (Visible to User)
+    # 2. LOG THE CHOICES
     print("\n" + "="*40)
     safe_print(f"🎭 ACT:   {act['name']}")
     safe_print(f"🎰 THEME: {theme['type']}")
