@@ -1,6 +1,0 @@
-{
-  "post_text": "I built the serverless gateway. Speed was everything.\nEven a senior engineer can misjudge scale.\n\nI believed I could mask JVM cold starts by simply over-provisioning memory.\n\nMonday morning traffic spiked 4x, far beyond the usual buffer.\nLatency immediately blew past P99 limits.\nThe dashboard showed 400ms requests, then zero, then 400ms again.\n\nWhy did memory utilization stay flat at 30% while the service was clearly failing? \uD83E\uDD14\n\nIt made no sense.\n\nWe weren’t slow at executing requests.\nWe were slow at becoming ready to handle them.\n\nInstances were being recycled faster than they could physically warm up.\nThe fix I trusted only amplified the true initialization cost.\n\nMeanwhile, the damage was already real.\nOur primary operations team lost 90 minutes of critical status reporting while the API flapped.\n\nThe Moral \uD83D\uDC47\nPreemptive scaling buffers hide architecture debt; they do not pay it.",
-  "lesson_extracted": "Preemptive scaling buffers hide architecture debt; they do not pay it.",
-  "meta_theme": "THE FALSE FIX \uD83D\uDD27",
-  "meta_tech": "Cold Starts"
-}
