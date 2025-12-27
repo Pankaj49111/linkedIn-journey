@@ -1,0 +1,6 @@
+{
+  "post_text": "I am usually measured. My code runs fast.\nBut I built this pricing cache myself. I felt untouchable integrating Redis and the local map.\nI assumed updating Master Data would trigger the necessary cache purge immediately, using the entity ID.\nA major partner started complaining about stale prices. Prices updated in the database, but users saw old numbers.\nPagerDuty erupted.\nWe verified the invalidation jobs executed instantly. They reported success. Yet, the price discrepancies persisted across multiple user sessions.\nHow?\nI looked at the logs. The invalidator successfully deleted price:123.\nBut the service was reading price:123:region_US:currency_USD.\nThe invalidation logic was too naive. It only hit the base entity key. The actual cached keys were dynamically composed of many runtime variables. \ud83e\udd26\u200d\u2642\ufe0f\nThe truth hit me like a train. I hadn't invalidated the actual key used by the read path, only the simplified 'source' key.\nThe system was deleting ghosts while the real data lived on. The Moral \ud83d\udc47",
+  "lesson_extracted": "The read path determines the write path\u2019s invalidation requirements.",
+  "meta_theme": "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
+  "meta_tech": "Cache Invalidation"
+}
