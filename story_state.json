@@ -9,7 +9,7 @@
     "Idempotency TTL must exceed the maximum theoretical time required to clear a full, multi-day production backlog, otherwise, 'At-Least-Once' becomes 'At-Most-Thrice.'",
     "High availability metrics driven by client-side retries often hide catastrophic latency spikes from your alerting platform.",
     "Preemptive scaling buffers hide architecture debt; they do not pay it.",
-    "The read path determines the write path\u2019s invalidation requirements."
+    "A cache that cannot be invalidated correctly is worse than no cache at all."
   ],
   "last_themes": [
     "THE OWNERSHIP GAP \ud83e\udde9",

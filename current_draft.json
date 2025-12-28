@@ -1,6 +1,0 @@
-{
-  "post_text": "I built this integration. I thought I knew the risks. We pushed the Aggregator service. Green tests validated our client\u2019s logic against the spec. Then P99 latency instantly doubled. Users across three regions started seeing timeouts. Logs flooded with deserialization errors\u2014\u201cexpected string, found array.\u201d My heart sank. I checked our client generation. It was flawless. I assumed the Product team strictly adhered to the v2 contract definition, believing the core metadata_tag field structure was fixed. The contradiction was painful. Their recent internal refactor, designed for efficiency, silently modified the field\u2019s type. They changed it from a nullable string to a nullable array of strings, thinking an empty array was equivalent to a null string for compatibility. They owned the source; we owned the failure. \ud83e\udd26 The ownership gap exploded under load. The Moral \ud83d\udc47",
-  "lesson_extracted": "True API compatibility depends on the consumer\u2019s expectations, not the producer\u2019s interpretation of null.",
-  "meta_theme": "THE OWNERSHIP GAP \ud83e\udde9",
-  "meta_tech": "API Contracts"
-}

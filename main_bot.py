@@ -277,17 +277,17 @@ RULES:
 - First 2 lines = hook (≤10 words)
 - Emojis ≤ 2, inline only
 - Stay inside the moment; no retrospectives
-- Do NOT give advice (e.g. "Avoid doing X"). Just tell the story.
 
-STRICT FORMAT:
-- End the post EXACTLY after the Moral sentence.
-- Format:
-  "The Moral 👇"
-  [One sharp sentence]
-  [STOP WRITING HERE]
+STRICT FORMAT (CRITICAL):
+- The 'post_text' JSON field MUST include the Story + The Header + The Lesson.
+- It must end exactly like this:
+  "...[Story ends]
+  
+  The Moral 👇
+  [Write the lesson sentence here]"
 
-- Do NOT add hashtags (I will add them).
-- Do NOT use markdown.
+- Do NOT separate the lesson from the post_text.
+- Do NOT add hashtags.
 
 OUTPUT JSON ONLY:
 {{
