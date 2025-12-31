@@ -1,6 +1,6 @@
 {
   "act_index": 1,
-  "episode": 2,
+  "episode": 3,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -10,20 +10,21 @@
     "High availability metrics driven by client-side retries often hide catastrophic latency spikes from your alerting platform.",
     "Preemptive scaling buffers hide architecture debt; they do not pay it.",
     "A cache that cannot be invalidated correctly is worse than no cache at all.",
-    "Distributed ordering guarantees are about the producer contract, not the consumer assumption."
+    "Distributed ordering guarantees are about the producer contract, not the consumer assumption.",
+    "The closer your SLI is to the user\u2019s reality, the more useful it is during a crisis."
   ],
   "last_themes": [
-    "THE CRASH \ud83d\udea8",
     "THE METRIC LIE \ud83d\udcca",
     "THE FALSE FIX \ud83d\udd27",
     "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
-    "THE CRASH \ud83d\udea8"
+    "THE CRASH \ud83d\udea8",
+    "THE METRIC LIE \ud83d\udcca"
   ],
   "last_tech": [
-    "At-Least-Once Delivery & Idempotency",
     "Alert Fatigue & SLIs",
     "Cold Starts",
     "Cache Invalidation",
-    "Event Ordering"
+    "Event Ordering",
+    "SLIs/SLOs"
   ]
 }
