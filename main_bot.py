@@ -9,14 +9,8 @@ import urllib.parse
 import re
 import random
 
-# =============================
-# FORCE UTF-8 OUTPUT
-# =============================
 sys.stdout.reconfigure(encoding="utf-8")
 
-# =============================
-# CONFIGURATION
-# =============================
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
 
@@ -26,15 +20,12 @@ IMAGE_FOLDER = "images"
 
 LINKEDIN_API_VERSION = "202411"
 
-# --- PERSONAL BRANDING ---
 MY_NAME = "Pankaj Kumar"
 
-# The CTA (Call to Action) appended to every post
-# Note: \n characters ensure visual separation on LinkedIn
 FIXED_CTA = f"""
-♻️ Found this useful? Repost to save a teammate from debugging hell.
+♻️ Repost to save someone from learning this the hard way.
 
-➕ Follow {MY_NAME} for more Backend Engineering war stories.
+➕ Follow {MY_NAME} for backend engineering lessons earned in production.
 """
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
@@ -210,7 +201,6 @@ def post_to_linkedin(urn, text, image_asset=None):
 
     full_text = text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
 
-    # Defensive Trim (Adjusted for added length)
     if len(full_text) > 2800:
         keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
         available_space = 2797 - keep_length
@@ -282,23 +272,30 @@ MANDATORY NARRATIVE SPINE:
 3. Real-world trigger
 4. Failure symptoms
 5. CONTRADICTION (things don’t make sense)
-6. INFLECTION (realization)
-7. LESSON (one sentence)
+6. INFLECTION:
+   - One short, emotional realization.
+   - No explanation.
+   - No cause-effect language.
+7. LESSON:
+   - One sentence.
+   - Reflective, not instructional.
 
 CONFESSION RULE:
 State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
 Do NOT write meta-statements like "My explicit wrong belief was...".
 
-RULES:
+STYLE RULES:
 - No paragraph > 2 lines
 - Active voice
 - First 2 lines = hook (≤10 words)
-- Emojis ≤ 2, inline only
-- Stay inside the moment; no retrospectives
-- Do NOT give advice (e.g. "Avoid doing X"). Just tell the story.
+- Emojis: Allowed ONLY to mark contradiction or impact. NO thinking (🤔) or shrug (🤷) emojis.
+- Stay inside the moment; no retrospectives.
+- Include one concrete human or operational consequence (on-call, rollback, lost trust). Do not dramatize.
 
 STRICT FORMAT:
 - End the post EXACTLY after the Moral sentence.
+- Moral must be DECLARATIVE, not PRESCRIPTIVE.
+- No verbs like "avoid", "always", "never".
 - Format:
   "The Moral 👇"
   [One sharp sentence]
@@ -345,6 +342,7 @@ def generate_with_review(client, prompt, forbidden_phrases):
         - One moment of confusion before the realization
         - One concrete human or operational consequence
         - Insight discovered, not explained
+        - Moral: Declarative, not prescriptive (No "Avoid", "Always", "Never")
         - Place exactly ONE sentence AFTER the line "The Moral 👇"
         """
 
@@ -372,7 +370,9 @@ def run_draft_mode():
 
     # 3. Build & Generate
     prompt = build_prompt(act, state["episode"], theme, tech, prev)
-    forbidden = [act["name"], theme["type"]]
+
+    # UPDATED FORBIDDEN LIST (Includes ALL Themes)
+    forbidden = [act["name"], theme["type"]] + [t["type"] for t in THEMES]
 
     content = generate_with_review(client, prompt, forbidden)
     content["meta_theme"] = theme["type"]
