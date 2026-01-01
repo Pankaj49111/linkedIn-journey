@@ -25,6 +25,18 @@ DRAFT_FILE = "current_draft.json"
 IMAGE_FOLDER = "images"
 
 LINKEDIN_API_VERSION = "202411"
+
+# --- PERSONAL BRANDING ---
+MY_NAME = "Pankaj Kumar"
+
+# The CTA (Call to Action) appended to every post
+# Note: \n characters ensure visual separation on LinkedIn
+FIXED_CTA = f"""
+♻️ Found this useful? Repost to save a teammate from debugging hell.
+
+➕ Follow {MY_NAME} for more Backend Engineering war stories.
+"""
+
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
@@ -60,7 +72,10 @@ THEMES = [
     {"type": "THE CRASH 🚨", "tone": "Calm urgency", "allowed_tech": ["infra", "async", "caching"]},
     {"type": "THE FALSE FIX 🔧", "tone": "Analytical, corrective", "allowed_tech": ["caching", "infra"]},
     {"type": "THE METRIC LIE 📊", "tone": "Skeptical, reflective", "allowed_tech": ["observability"]},
-    {"type": "THE OWNERSHIP GAP 🧩", "tone": "Leadership-focused", "allowed_tech": ["ownership"]}
+    {"type": "THE OWNERSHIP GAP 🧩", "tone": "Leadership-focused", "allowed_tech": ["ownership"]},
+    {"type": "THE EUREKA MOMENT 💡", "tone": "Inspiring, energetic", "allowed_tech": ["distributed_data", "caching"]},
+    {"type": "THE SILENT VICTORY 🏆", "tone": "Proud, technical", "allowed_tech": ["infra", "observability"]},
+    {"type": "THE BORING STACK ❤️", "tone": "Pragmatic, counter-culture", "allowed_tech": ["distributed_data", "infra"]}
 ]
 
 # =============================
@@ -193,15 +208,18 @@ def post_to_linkedin(urn, text, image_asset=None):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    # 1. APPEND HASHTAGS (Programmatic Guarantee)
-    text = text.strip() + FIXED_HASHTAGS
+    full_text = text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
 
-    # 2. Defensive Trim
-    if len(text) > 2800: text = text[:2797] + "..."
+    # Defensive Trim (Adjusted for added length)
+    if len(full_text) > 2800:
+        keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
+        available_space = 2797 - keep_length
+        text = text[:available_space] + "..."
+        full_text = text + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
 
     payload = {
         "author": f"urn:li:person:{urn}",
-        "commentary": text,
+        "commentary": full_text,
         "visibility": "PUBLIC",
         "distribution": {"feedDistribution": "MAIN_FEED"},
         "lifecycleState": "PUBLISHED",
@@ -277,17 +295,17 @@ RULES:
 - First 2 lines = hook (≤10 words)
 - Emojis ≤ 2, inline only
 - Stay inside the moment; no retrospectives
+- Do NOT give advice (e.g. "Avoid doing X"). Just tell the story.
 
-STRICT FORMAT (CRITICAL):
-- The 'post_text' JSON field MUST include the Story + The Header + The Lesson.
-- It must end exactly like this:
-  "...[Story ends]
-  
-  The Moral 👇
-  [Write the lesson sentence here]"
+STRICT FORMAT:
+- End the post EXACTLY after the Moral sentence.
+- Format:
+  "The Moral 👇"
+  [One sharp sentence]
+  [STOP WRITING HERE]
 
-- Do NOT separate the lesson from the post_text.
-- Do NOT add hashtags.
+- Do NOT add hashtags (I will add them).
+- Do NOT use markdown.
 
 OUTPUT JSON ONLY:
 {{
@@ -415,7 +433,7 @@ def run_publish_mode():
 
     save_json(STATE_FILE, state)
     os.remove(DRAFT_FILE)
-    if image_path: os.remove(image_path) # Auto-delete used image
+    if image_path: os.remove(image_path)
     safe_print("🚀 Published successfully.")
 
 # =============================
