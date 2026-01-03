@@ -42,9 +42,6 @@ ACTS = [
     {"name": "ACT VI – Judgment, Restraint, Engineering Wisdom", "max_episodes": 6},
 ]
 
-# =============================
-# TECH FOCUS AREAS
-# =============================
 TECH_FOCUS_AREAS = {
     "distributed_data": ["Cassandra", "CQRS", "Schema Evolution"],
     "caching": ["Redis", "Cache Invalidation", "Distributed Locking"],
@@ -54,9 +51,6 @@ TECH_FOCUS_AREAS = {
     "ownership": ["API Contracts", "Dependency Drift", "Legacy Migrations"]
 }
 
-# =============================
-# THEMES
-# =============================
 THEMES = [
     {"type": "THE ARCHITECTURAL TRAP 🏗️", "tone": "Humble, analytical", "allowed_tech": ["distributed_data", "caching", "async"]},
     {"type": "THE HUMAN ALGORITHM 🤝", "tone": "Reflective, empathetic", "allowed_tech": ["ownership", "async", "observability"]},
@@ -69,9 +63,6 @@ THEMES = [
     {"type": "THE BORING STACK ❤️", "tone": "Pragmatic, counter-culture", "allowed_tech": ["distributed_data", "infra"]}
 ]
 
-# =============================
-# HELPERS
-# =============================
 def safe_print(text):
     try:
         print(text.encode("utf-8", "replace").decode("utf-8"))
@@ -95,13 +86,14 @@ def save_json(path, data):
 
 def clean_text(text, forbidden_phrases=None):
     if not text: return ""
-    text = text.replace("*", "") # Remove bolding first
-    text = re.sub(r'[\(\[].*?[\)\]]', '', text)
+    text = text.replace("*", "")
+
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
 
     if forbidden_phrases:
         for phrase in forbidden_phrases:
-            text = re.sub(re.escape(phrase), '', text, flags=re.IGNORECASE)
+            pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
+            text = re.sub(pattern, '', text)
 
     return text.strip()
 
@@ -228,9 +220,6 @@ def post_to_linkedin(urn, text, image_asset=None):
         safe_print(f"❌ Network Error: {e}")
         return False
 
-# =============================
-# QUALITY GATE
-# =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
 
@@ -253,9 +242,6 @@ Respond with exactly:
 PASS_9_PLUS or FAIL
 """
 
-# =============================
-# PROMPT BUILDER
-# =============================
 def build_prompt(act, episode, theme, tech, prev_lessons):
     return f"""
 Role:
@@ -288,14 +274,15 @@ STYLE RULES:
 - No paragraph > 2 lines
 - Active voice
 - First 2 lines = hook (≤10 words)
-- Emojis: Allowed ONLY to mark contradiction or impact. NO thinking (🤔) or shrug (🤷) emojis.
+- Emojis: Strict Limit 3-5. Use narrative/tech emojis like (🚀, 📉, 💥, 🧠, 💻, 💀, 🔍, 🏗️).
+- BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
 - Stay inside the moment; no retrospectives.
-- Include one concrete human or operational consequence (on-call, rollback, lost trust). Do not dramatize.
+- Include one concrete human or operational consequence (on-call, rollback, lost trust).
 
 STRICT FORMAT:
 - End the post EXACTLY after the Moral sentence.
-- Moral must be DECLARATIVE, not PRESCRIPTIVE.
-- No verbs like "avoid", "always", "never".
+- Moral must be DECLARATIVE statements of truth.
+- BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
 - Format:
   "The Moral 👇"
   [One sharp sentence]
@@ -342,16 +329,13 @@ def generate_with_review(client, prompt, forbidden_phrases):
         - One moment of confusion before the realization
         - One concrete human or operational consequence
         - Insight discovered, not explained
-        - Moral: Declarative, not prescriptive (No "Avoid", "Always", "Never")
+        - Moral: Declarative truth only. NO advice verbs ("Avoid", "Always").
         - Place exactly ONE sentence AFTER the line "The Moral 👇"
         """
 
     safe_print("❌ Failed strict quality gate twice.")
     sys.exit(1)
 
-# =============================
-# DRAFT MODE
-# =============================
 def run_draft_mode():
     state = load_json(STATE_FILE)
     client = genai.Client(api_key=GEMINI_KEY)
@@ -371,7 +355,6 @@ def run_draft_mode():
     # 3. Build & Generate
     prompt = build_prompt(act, state["episode"], theme, tech, prev)
 
-    # UPDATED FORBIDDEN LIST (Includes ALL Themes)
     forbidden = [act["name"], theme["type"]] + [t["type"] for t in THEMES]
 
     content = generate_with_review(client, prompt, forbidden)

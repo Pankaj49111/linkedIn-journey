@@ -1,6 +1,0 @@
-{
-  "post_text": "I built this system. I trusted my architecture.\n\nI designed the core transaction service using Redis-backed distributed locks. I thought managing concurrency using SETNX and an expiration key provided ironclad mutual exclusion for critical resource updates. I assumed the network latency between the writer and the lock release was negligible.\n\nLast Friday's massive data migration job kicked off. It hit the service with 10x normal load, stressing the thread pools.\n\nImmediately, the anomaly detection fired. Customers saw their account balances fluctuate wildly, occasionally double-deducting payments. I was 3 AM on-call, staring at corrupted state.\n\nThe logs clearly showed Service A acquiring Lock X, processing, and releasing Lock X. But 50ms later, Service B had also acquired Lock X and processed the same input. I saw the LOCK_RELEASED log entry, yet the next service believed the key was free. Something was fundamentally wrong with the timing. \ud83d\udca5\n\nThe expiration timer was too short.\n\nThe Moral \ud83d\udc47\nDistributed systems amplify tiny timing errors into systemic faults.",
-  "lesson_extracted": "Distributed systems amplify tiny timing errors into systemic faults",
-  "meta_theme": "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
-  "meta_tech": "Distributed Locking"
-}
