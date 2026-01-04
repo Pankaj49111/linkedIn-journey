@@ -9,8 +9,14 @@ import urllib.parse
 import re
 import random
 
+# =============================
+# FORCE UTF-8 OUTPUT
+# =============================
 sys.stdout.reconfigure(encoding="utf-8")
 
+# =============================
+# CONFIGURATION
+# =============================
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
 
@@ -20,6 +26,7 @@ IMAGE_FOLDER = "images"
 
 LINKEDIN_API_VERSION = "202411"
 
+# --- PERSONAL BRANDING ---
 MY_NAME = "Pankaj Kumar"
 
 FIXED_CTA = f"""
@@ -29,6 +36,49 @@ FIXED_CTA = f"""
 """
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
+
+# =============================
+# NARRATIVE SPINES
+# =============================
+NARRATIVE_SPINES = {
+    "CLASSIC_FAILURE": {
+        "weight": 55,
+        "instructions": """
+        1. Identity & humility
+        2. Confident decision
+        3. Real-world trigger (Traffic spike/Alert)
+        4. Failure symptoms (The crash)
+        5. CONTRADICTION (Why did it fail?)
+        6. INFLECTION (Realization)
+        7. LESSON (Correction)
+        """
+    },
+    "SILENT_FAILURE": {
+        "weight": 25,
+        "instructions": """
+        1. Identity & humility
+        2. Confident decision
+        3. GREEN METRICS (System looked healthy)
+        4. The nagging feeling / subtle anomaly
+        5. The delayed discovery (Weeks later - Data corruption/Debt)
+        6. INFLECTION (The invisible cost realized)
+        7. LESSON (Integrity/Observability)
+        CRITICAL: No alerts fired. No incident declared. The damage was silent.
+        """
+    },
+    "SCARY_SUCCESS": {
+        "weight": 20,
+        "instructions": """
+        1. Identity & humility
+        2. The high-stakes change (Scaling/Infra)
+        3. IMMEDIATE SUCCESS (Metrics improved, Team cheered)
+        4. The hollow feeling / uneasiness
+        5. CONTRADICTION (Success hid a new fragility)
+        6. INFLECTION (Realization of risk)
+        7. LESSON (Fragility/Complexity)
+        """
+    }
+}
 
 # =============================
 # ACTS (CAREER ARC)
@@ -42,6 +92,9 @@ ACTS = [
     {"name": "ACT VI – Judgment, Restraint, Engineering Wisdom", "max_episodes": 6},
 ]
 
+# =============================
+# TECH FOCUS AREAS
+# =============================
 TECH_FOCUS_AREAS = {
     "distributed_data": ["Cassandra", "CQRS", "Schema Evolution"],
     "caching": ["Redis", "Cache Invalidation", "Distributed Locking"],
@@ -51,6 +104,9 @@ TECH_FOCUS_AREAS = {
     "ownership": ["API Contracts", "Dependency Drift", "Legacy Migrations"]
 }
 
+# =============================
+# THEMES
+# =============================
 THEMES = [
     {"type": "THE ARCHITECTURAL TRAP 🏗️", "tone": "Humble, analytical", "allowed_tech": ["distributed_data", "caching", "async"]},
     {"type": "THE HUMAN ALGORITHM 🤝", "tone": "Reflective, empathetic", "allowed_tech": ["ownership", "async", "observability"]},
@@ -63,6 +119,9 @@ THEMES = [
     {"type": "THE BORING STACK ❤️", "tone": "Pragmatic, counter-culture", "allowed_tech": ["distributed_data", "infra"]}
 ]
 
+# =============================
+# HELPERS
+# =============================
 def safe_print(text):
     try:
         print(text.encode("utf-8", "replace").decode("utf-8"))
@@ -88,8 +147,10 @@ def clean_text(text, forbidden_phrases=None):
     if not text: return ""
     text = text.replace("*", "")
 
+    # Remove labels like "Hook:", "Body:"
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
 
+    # SMART SCRUBBER: Removes forbidden phrases ONLY if they are the whole line
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
@@ -111,6 +172,40 @@ def select_theme_and_tech(state):
     final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]] or tech_pool
 
     return theme, random.choice(final_tech_pool)
+
+def select_spine():
+    """Weighted random selection of narrative spines"""
+    spines = list(NARRATIVE_SPINES.keys())
+    weights = [NARRATIVE_SPINES[k]["weight"] for k in spines]
+    selected_key = random.choices(spines, weights=weights, k=1)[0]
+    return selected_key, NARRATIVE_SPINES[selected_key]["instructions"]
+
+def get_arc_payoff(act_index):
+    """Returns narrative instruction based on Career Act (Long-term Arc)"""
+    if act_index <= 2:
+        return "" # No special instruction, just pure experience
+
+    return """
+    LONG-TERM PAYOFF INSTRUCTION:
+    You are now in a later stage of your career (Act IV+).
+    - Admit a trade-off you knowingly accept today.
+    - Acknowledge the solution is imperfect.
+    - The moral should be about acceptance/restraint, not just optimization.
+    """
+
+def maybe_add_deferred_echo(state):
+    """Adds a subtle callback to previous lessons every 5 episodes"""
+    if state["episode"] % 5 != 0:
+        return ""
+    if not state.get("previous_lessons"):
+        return ""
+
+    return """
+    NARRATIVE DEPTH INSTRUCTION:
+    Subtly echo a past mistake conceptually without restating it explicitly.
+    Do NOT reference specific dates, post numbers, or "previous lessons".
+    Just let the wisdom inform your current reaction.
+    """
 
 def get_image_from_folder():
     if not os.path.exists(IMAGE_FOLDER): return None
@@ -220,6 +315,9 @@ def post_to_linkedin(urn, text, image_asset=None):
         safe_print(f"❌ Network Error: {e}")
         return False
 
+# =============================
+# QUALITY GATE
+# =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
 
@@ -227,7 +325,7 @@ FAIL if ANY are true:
 1. No explicit wrong belief admitted by the narrator.
 2. No explicit contradiction where system behavior defies expectation.
 3. The realization is explained diagnostically instead of discovered emotionally.
-4. The failure has no human or operational impact (user-visible damage, on-call pressure, rollback, escalation).
+4. The failure has no human or operational impact (user-visible damage, on-call pressure, rollback, escalation, or hidden debt).
 5. Insight feels polished instead of earned through confusion.
 6. Moral is missing, longer than one sentence, or sounds like documentation.
 7. Tone feels like content creation or explanation.
@@ -235,17 +333,23 @@ FAIL if ANY are true:
 
 PASS_9_PLUS only if:
 - Confidence → confusion → realization is felt.
-- Stakes are real and immediate.
+- Stakes are real (immediate or future).
 - Moral implies ownership or responsibility.
 
 Respond with exactly:
 PASS_9_PLUS or FAIL
 """
 
-def build_prompt(act, episode, theme, tech, prev_lessons):
+# =============================
+# PROMPT BUILDER
+# =============================
+def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, act_index, echo_instruction):
+
+    payoff_instruction = get_arc_payoff(act_index)
+
     return f"""
 Role:
-You are a Senior Backend Engineer reflecting on a real production incident.
+You are a Senior Backend Engineer reflecting on a real production experience.
 
 INVISIBLE CONTEXT (DO NOT PRINT):
 - Life Stage: {act['name']}
@@ -253,18 +357,10 @@ INVISIBLE CONTEXT (DO NOT PRINT):
 - Tech Focus: {tech}
 
 MANDATORY NARRATIVE SPINE:
-1. Identity & humility
-2. Confident decision
-3. Real-world trigger
-4. Failure symptoms
-5. CONTRADICTION (things don’t make sense)
-6. INFLECTION:
-   - One short, emotional realization.
-   - No explanation.
-   - No cause-effect language.
-7. LESSON:
-   - One sentence.
-   - Reflective, not instructional.
+{spine_instructions}
+
+{payoff_instruction}
+{echo_instruction}
 
 CONFESSION RULE:
 State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
@@ -275,9 +371,14 @@ STYLE RULES:
 - Active voice
 - First 2 lines = hook (≤10 words)
 - Emojis: Strict Limit 3-5. Use narrative/tech emojis like (🚀, 📉, 💥, 🧠, 💻, 💀, 🔍, 🏗️).
+- EMOJI PLACEMENT: Never more than 1 per paragraph. Use only for impact.
 - BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
 - Stay inside the moment; no retrospectives.
-- Include one concrete human or operational consequence (on-call, rollback, lost trust).
+- Include one concrete human or operational consequence (on-call, rollback, lost trust, or massive hidden debt).
+
+CREATIVITY VALVE:
+If following every single rule strictly would make the post sound robotic or stiff, prioritize Emotional Truth over rigid structure. 
+Do not announce this deviation, just write the story authentically.
 
 STRICT FORMAT:
 - End the post EXACTLY after the Moral sentence.
@@ -300,6 +401,9 @@ OUTPUT JSON ONLY:
 Length: 150–200 words
 """
 
+# =============================
+# GENERATE + REVIEW LOOP
+# =============================
 def generate_with_review(client, prompt, forbidden_phrases):
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
@@ -336,6 +440,9 @@ def generate_with_review(client, prompt, forbidden_phrases):
     safe_print("❌ Failed strict quality gate twice.")
     sys.exit(1)
 
+# =============================
+# DRAFT MODE
+# =============================
 def run_draft_mode():
     state = load_json(STATE_FILE)
     client = genai.Client(api_key=GEMINI_KEY)
@@ -345,21 +452,25 @@ def run_draft_mode():
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # 2. LOG THE CHOICES
+    spine_name, spine_steps = select_spine()
+    echo_instr = maybe_add_deferred_echo(state)
+
     print("\n" + "="*40)
     safe_print(f"🎭 ACT:   {act['name']}")
+    safe_print(f"🦴 SPINE: {spine_name}")
     safe_print(f"🎰 THEME: {theme['type']}")
     safe_print(f"🛠️ TECH:  {tech}")
+    if echo_instr: safe_print("📢 ECHO:  Injecting deferred lesson depth...")
     print("="*40 + "\n")
 
-    # 3. Build & Generate
-    prompt = build_prompt(act, state["episode"], theme, tech, prev)
+    prompt = build_prompt(act, state["episode"], theme, tech, prev, spine_steps, state["act_index"], echo_instr)
 
     forbidden = [act["name"], theme["type"]] + [t["type"] for t in THEMES]
 
     content = generate_with_review(client, prompt, forbidden)
     content["meta_theme"] = theme["type"]
     content["meta_tech"] = tech
+    content["meta_spine"] = spine_name
 
     save_json(DRAFT_FILE, content)
 
