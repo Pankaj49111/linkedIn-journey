@@ -1,0 +1,6 @@
+{
+  "post_text": "I\u2019m a senior engineer. The system always finds the corners you cut. \ud83d\udcbb\nWe needed resilience before the 3x load increase. I doubled the database connection pool limit immediately, confident this decision gave us necessary headroom. \ud83e\udde0\nI assumed increasing the pool size solved connection contention instantly. I thought the default library settings managed resource release aggressively enough.\nThe moment launch traffic hit, latency jumped instantly. Not a gradual degradation, but a catastrophic spike to 1.5 seconds. The entire on-call rotation was pulled into the P0 incident. \ud83d\udca5\nOur database CPU was flat, yet connection counts were pegged at the new maximum. We had low application errors but fatal response times. Why weren't they releasing? It made no tactical sense. This forced a humiliating full feature rollback.\nThe thread holding the connection was stuck waiting on an internal synchronization lock. \ud83d\udc80\nThe Moral \ud83d\udc47\nConnection pooling manages the database resource, but synchronous application code dictates the resource's lease time.",
+  "lesson_extracted": "Connection pooling manages the database resource, but synchronous application code dictates the resource's lease time.",
+  "meta_theme": "THE SILENT VICTORY \ud83c\udfc6",
+  "meta_tech": "Connection Pooling"
+}
