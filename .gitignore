@@ -1,0 +1,15 @@
+# Runtime generated files
+current_draft.json
+story_state.json
+
+# Python caches
+__pycache__/
+*.pyc
+
+# Environment files
+.env
+
+# Local images not intended for repo
+images/*
+!images/README.md
+
