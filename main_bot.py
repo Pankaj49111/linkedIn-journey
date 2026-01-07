@@ -158,6 +158,46 @@ def clean_text(text, forbidden_phrases=None):
 
     return text.strip()
 
+def format_for_linkedin(text):
+    """
+    Ensures stories are readable on mobile.
+    1. Breaks huge paragraphs (>250 chars) into smaller chunks.
+    2. Forces DOUBLE NEWLINES between every paragraph.
+    """
+    # Normalize line endings
+    text = text.replace('\r\n', '\n').strip()
+
+    # Split by existing newlines
+    raw_paragraphs = re.split(r'\n+', text)
+
+    final_paragraphs = []
+    for p in raw_paragraphs:
+        p = p.strip()
+        if not p: continue
+
+        # If paragraph is too long, split it intelligently
+        if len(p) > 250:
+            # Split by sentence endings
+            sentences = re.split(r'(?<=[.!?]) +', p)
+            chunk = ""
+            count = 0
+
+            for s in sentences:
+                chunk += s + " "
+                count += 1
+                # Group 2 sentences per block max
+                if count >= 2:
+                    final_paragraphs.append(chunk.strip())
+                    chunk = ""
+                    count = 0
+
+            if chunk:
+                final_paragraphs.append(chunk.strip())
+        else:
+            final_paragraphs.append(p)
+
+    return "\n\n".join(final_paragraphs)
+
 def select_theme_and_tech(state):
     last_themes = state.get("last_themes", [])
     last_tech = state.get("last_tech", [])
@@ -278,6 +318,8 @@ def poll_image_status(image_urn):
     return False
 
 def post_to_linkedin(urn, text, image_asset=None):
+    formatted_text = format_for_linkedin(text)
+
     url = "https://api.linkedin.com/rest/posts"
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -286,7 +328,7 @@ def post_to_linkedin(urn, text, image_asset=None):
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
 
-    full_text = text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
+    full_text = formatted_text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
 
     if len(full_text) > 2800:
         keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
@@ -471,6 +513,9 @@ def run_draft_mode():
     content["meta_theme"] = theme["type"]
     content["meta_tech"] = tech
     content["meta_spine"] = spine_name
+
+    # 🔧 APPLY FORMATTING FIX BEFORE SAVING DRAFT
+    content["post_text"] = format_for_linkedin(content["post_text"])
 
     save_json(DRAFT_FILE, content)
 
