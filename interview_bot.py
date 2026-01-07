@@ -78,9 +78,6 @@ SERIES_MARKERS = [
     "I tend to pause when this answer sounds complete..."
 ]
 
-# =============================
-# HELPERS
-# =============================
 def safe_print(text):
     try:
         print(text.encode("utf-8", "replace").decode("utf-8"))
@@ -101,23 +98,56 @@ def clean_text(text):
     if not text: return ""
     text = text.replace("*", "")
 
-    # 1. JVM FIREWALL CHECK
+    # JVM Firewall
     for term in FORBIDDEN_TECH_TERMS:
         if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
             raise ValueError(f"Forbidden non-JVM term detected: {term}")
 
-    # 2. HEADER STRIPPER
     text = re.sub(r'(?i)^(Hook|Lesson|Insight|Signal|Trap|Reality|Common Answer|Where it breaks|Where it holds|Context|Observation):', '', text, flags=re.MULTILINE)
 
-    # 3. FORCE PARAGRAPH SPACING
-    text = re.sub(r'(?<!\n)\n(?!\n)', '\n\n', text)
-
     return text.strip()
+
+def format_for_linkedin(text):
+    """
+    Forcefully inserts double newlines to prevent 'Wall of Text'.
+    1. Standardizes existing newlines.
+    2. If a paragraph is too long (>250 chars), it splits it.
+    """
+    # 1. Normalize line endings
+    text = text.replace('\r\n', '\n').strip()
+
+    # 2. Split by any existing paragraphs
+    paragraphs = re.split(r'\n+', text)
+
+    final_paragraphs = []
+    for p in paragraphs:
+        p = p.strip()
+        if not p: continue
+
+        if len(p) > 280:
+            # Split by period, but keep the period
+            sentences = re.split(r'(?<=[.!?]) +', p)
+            # Group every 2 sentences into a new paragraph
+            chunk = ""
+            count = 0
+            for s in sentences:
+                chunk += s + " "
+                count += 1
+                if count >= 2:
+                    final_paragraphs.append(chunk.strip())
+                    chunk = ""
+                    count = 0
+            if chunk:
+                final_paragraphs.append(chunk.strip())
+        else:
+            final_paragraphs.append(p)
+
+    return "\n\n".join(final_paragraphs)
 
 def check_length_constraint(text):
     sentences = re.split(r'[.!?]+', text)
     sentences = [s for s in sentences if len(s.strip()) > 3]
-    if len(sentences) > 8: return False, len(sentences)
+    if len(sentences) > 9: return False, len(sentences)
     return True, len(sentences)
 
 def parse_json_safely(raw_text):
@@ -140,7 +170,6 @@ def select_topic(state):
     if not available_categories: available_categories = categories
     category = random.choice(available_categories)
 
-    # Bias against recent topics
     subtopics = INTERVIEW_TOPICS[category]
     available_subtopics = [t for t in subtopics if t not in last_topics]
     if not available_subtopics: available_subtopics = subtopics
@@ -180,57 +209,41 @@ def post_to_linkedin(urn, text):
     return resp.status_code == 201
 
 def build_prompt(category, subtopic, lens, posture, use_series_marker, use_early_fail):
-
-    # 1. Handle Series Marker Logic
     opening_instr = f"Start with: {posture}"
     if use_series_marker:
         marker = random.choice(SERIES_MARKERS)
         opening_instr = f"Start EXPLICITLY with this phrase: '{marker}'"
 
-    # 2. Handle Structure Rotation (Standard vs Early Fail)
     if use_early_fail:
-        structure_instr = """
-        1. THE OBSERVATION: Describe the confident answer.
-        2. THE EARLY CRACK: Don't wait. Immediately hint at the failure mode in paragraph 2.
-        3. THE DEEP CONSEQUENCE: Expand on the operational cost and END with the 'Reveal Sentence'.
-        """
+        structure_instr = "1. THE OBSERVATION\n2. THE EARLY CRACK (Fail immediately)\n3. THE CONSEQUENCE"
     else:
-        structure_instr = """
-        1. THE OBSERVATION: Describe the standard, confident answer.
-        2. THE CONTEXT: Briefly acknowledge where this mental model works (steady state).
-        3. THE GAP & JUDGMENT: Describe the failure mode, and END with the 'Reveal Sentence'.
-        """
+        structure_instr = "1. THE OBSERVATION\n2. THE CONTEXT\n3. THE GAP"
 
     return f"""
 Role:
-You are a Senior Backend Engineer reflecting on patterns you've seen in interviews and production.
+Senior Backend Engineer Peer.
 
 CONTEXT:
 - Topic: {category}
-- Specific Pattern: {subtopic}
-- ANALYSIS LENS: {lens}
-- OPENING INSTRUCTION: {opening_instr}
+- Pattern: {subtopic}
+- Lens: {lens}
+- Opening: {opening_instr}
 
-STRICT CONSTRAINTS:
-1. JVM ONLY: All examples must be explainable within a JVM-based backend system.
-2. NO PROPER NOUN SPAM: Use max 1 specific tool name (e.g. "Hibernate"). Prefer generic terms like "ORM", "Client", "Broker".
-3. NO EMOJIS.
+CONSTRAINTS:
+1. JVM ONLY. No Node/Go/Rust.
+2. NO EMOJIS.
+3. Max 1 proper noun (e.g. "Hibernate").
 
 TASK:
-Write a short, narrative observation (3 paragraphs).
+Write a short, narrative observation ({structure_instr}).
 
-NARRATIVE FLOW:
-{structure_instr}
+REVEAL SENTENCE:
+Final sentence must follow: "This is usually where the discussion stops being about [Concept] and starts revealing how someone reasons about [System Risk]."
 
-THE REVEAL SENTENCE (CRITICAL):
-- The final sentence must NOT be academic.
-- Follow this rhythm: "This is usually where the discussion stops being about [Concept] and starts revealing how someone reasons about [Pressure/Risk/Systems]."
-
-STRICT FORMATTING:
-- Use DOUBLE NEWLINES between every paragraph.
-- MAX 3 SENTENCES per paragraph.
-- MAX 8 SENTENCES TOTAL.
-- JSON Output must escape newlines (use \\n).
+FORMATTING:
+- USE DOUBLE NEWLINES between paragraphs.
+- Keep paragraphs short (2-3 sentences max).
+- JSON Output with escaped newlines (\\n).
 
 OUTPUT JSON ONLY:
 {{
@@ -241,18 +254,17 @@ OUTPUT JSON ONLY:
 def build_compress_prompt(original_text):
     return f"""
 Role: Senior Editor.
-Task: Compress the following text to increase density and seniority.
+Task: Fix the formatting and density of this text.
 
-INPUT TEXT:
+INPUT:
 "{original_text}"
 
 RULES:
-1. Reduce sentence count to strictly 7 or 8 total.
-2. Ensure there are exactly 3 paragraphs.
-3. Remove any "teaching" or "explaining" fluff.
-4. Keep the tone observational ("I see this"), not instructional ("You should").
-5. The final sentence MUST be the "Reveal Sentence" about engineering judgment.
-6. NO EMOJIS.
+1. **CRITICAL: MAINTAIN PARAGRAPH BREAKS.** Do NOT merge into one block.
+2. Ensure there are exactly 3 distinct paragraphs separated by blank lines.
+3. Remove "teaching" fluff.
+4. Final sentence must be the "Reveal Sentence".
+5. NO EMOJIS.
 
 OUTPUT JSON ONLY:
 {{
@@ -261,82 +273,67 @@ OUTPUT JSON ONLY:
 """
 
 QUALITY_GATE_PROMPT = """
-Role: Senior Engineer Peer (Java/JVM Context).
+Role: Senior Engineer Peer.
 
 FAIL if:
-- Post references non-JVM tech.
-- Post uses headers or labels.
+- Post is a single wall of text (no breaks).
 - Post uses emojis.
-- Tone is academic ("holistic reasoning").
-- Total length > 8 sentences.
+- Tone is academic.
+- Length > 9 sentences.
 
 PASS if:
-- Tone is observational ("I've noticed...").
-- Structure is 3 short, separated paragraphs.
-- Final sentence connects technical gap to judgment.
+- Structure is 3 clearly separated paragraphs.
+- Tone is observational.
 
-Respond with exactly:
-PASS or FAIL
+Respond exactly: PASS or FAIL
 """
 
 def generate_with_review(client, prompt):
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        # 1. GENERATE DRAFT 1
+        # 1. GENERATE
         response = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=prompt,
+            model="gemini-flash-latest", contents=prompt,
             config={"response_mime_type": "application/json"}
         )
         content = parse_json_safely(response.text)
+        draft1 = clean_text(content.get("post_text", ""))
 
-        try:
-            draft1 = clean_text(content.get("post_text", ""))
-        except ValueError as e:
-            safe_print(f"⚠️ JVM Firewall Triggered: {e}")
-            prompt += f"\nERROR: Forbidden term ({e}). Stick strictly to Java/JVM."
-            continue
-
-        # 2. AUTO-COMPRESS (DRAFT 2)
         safe_print("🔨 Running Auto-Compressor...")
         compress_resp = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=build_compress_prompt(draft1),
+            model="gemini-flash-latest", contents=build_compress_prompt(draft1),
             config={"response_mime_type": "application/json"}
         )
         compressed_content = parse_json_safely(compress_resp.text)
-        final_post = clean_text(compressed_content.get("post_text", ""))
+        post_text = clean_text(compressed_content.get("post_text", ""))
 
-        # 3. LENGTH CHECK
+        final_post = format_for_linkedin(post_text)
+
         ok, count = check_length_constraint(final_post)
         if not ok:
-            safe_print(f"⚠️ Length Guard Failed: {count} sentences.")
-            prompt += "\nERROR: Too long. Max 8 sentences."
+            prompt += "\nERROR: Too long. Cut to max 8 sentences."
             continue
 
-        # 4. QUALITY GATE
         verdict = client.models.generate_content(
             model="gemini-flash-latest",
             contents=f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{final_post}"
         ).text.strip()
 
-        safe_print(f"🕵️ Senior Peer Verdict: {verdict}")
+        safe_print(f"🕵️ Verdict: {verdict}")
 
         if verdict == "PASS":
             return final_post
 
-        prompt += "\nRewrite. Remove headers. Final sentence must focus on 'reasoning about pressure', not academic terms."
+        prompt += "\nRewrite. Force double newlines between paragraphs."
 
-    safe_print("❌ Failed quality gate twice.")
+    safe_print("❌ Failed quality gate.")
     sys.exit(1)
 
 def run_automation(dry_run=False):
-    # 1. SETUP
     state = load_json(STATE_FILE, {"last_topics": [], "last_categories": []})
     client = genai.Client(api_key=GEMINI_KEY)
 
-    # 2. SELECTION
     category, subtopic = select_topic(state)
     lens = random.choice(ANSWER_LENSES)
     posture = random.choice(OPENING_POSTURES)
@@ -347,39 +344,29 @@ def run_automation(dry_run=False):
     print("\n" + "="*50)
     print(f"📝 TOPIC:    {category.upper()}")
     print(f"🔍 PATTERN:  {subtopic}")
-    print(f"🎲 VARIANT:  {'[Series Marker]' if use_series_marker else ''} {'[Early Fail]' if use_early_fail else '[Standard]'}")
     print("="*50 + "\n")
 
-    # 3. GENERATE
     prompt = build_prompt(category, subtopic, lens, posture, use_series_marker, use_early_fail)
     post_text = generate_with_review(client, prompt)
 
     safe_print("✅ Content Generated:")
     safe_print(post_text)
 
-    # 4. DRY RUN CHECK
     if dry_run:
-        print("\n[DRY RUN MODE] Content not published.")
+        print("\n[DRY RUN MODE]")
         history = load_json(HISTORY_FILE, [])
-        history.append({
-            "date": time.strftime("%Y-%m-%d"),
-            "topic": f"{category}:{subtopic}",
-            "status": "dry-run",
-            "text": post_text
-        })
+        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "dry-run", "text": post_text})
         save_json(HISTORY_FILE, history[-50:])
         return
 
-    # 5. PUBLISH
     urn = get_user_urn()
     if not urn:
         safe_print("❌ Invalid LinkedIn token.")
         return
 
-    print("\n🚀 Publishing to LinkedIn...")
+    print("\n🚀 Publishing...")
     if post_to_linkedin(urn, post_text):
-        safe_print("✅ Published Successfully.")
-
+        safe_print("✅ Published.")
         state["last_topics"].append(f"{category}:{subtopic}")
         state["last_topics"] = state["last_topics"][-15:]
         state["last_categories"].append(category)
@@ -387,22 +374,13 @@ def run_automation(dry_run=False):
         save_json(STATE_FILE, state)
 
         history = load_json(HISTORY_FILE, [])
-        history.append({
-            "date": time.strftime("%Y-%m-%d"),
-            "topic": f"{category}:{subtopic}",
-            "status": "published",
-            "text": post_text
-        })
+        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "published", "text": post_text})
         save_json(HISTORY_FILE, history[-50:])
     else:
         safe_print("❌ Publish failed.")
 
-# =============================
-# ENTRYPOINT
-# =============================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dry-run", action="store_true", help="Generate content but do not publish")
+    parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
-
     run_automation(dry_run=args.dry_run)
