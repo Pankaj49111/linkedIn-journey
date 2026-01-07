@@ -1,26 +1,28 @@
-name: Scheduled LinkedIn Story
+name: Scheduled LinkedIn Strategy
 on:
   schedule:
     - cron: '30 3 * * 1,3,5,0'
 
-    - cron: '30 12 * * 0,2,4,6'
+    - cron: '30 12 * * 2,6'
 
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'Run mode'
+      manual_override:
+        description: 'Force run specific bot?'
         required: true
-        default: 'draft'
+        default: 'auto'
         type: choice
         options:
-        - draft
-        - publish
+          - auto
+          - force_interview
+          - force_story_draft
+          - force_story_publish
 
 permissions:
   contents: write
 
 jobs:
-  run-story:
+  run-strategy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -34,29 +36,61 @@ jobs:
       - name: Install dependencies
         run: pip install requests google-genai
 
-      - name: Set Mode Variable
-        id: set_mode
+      - name: Determine Schedule Logic
+        id: logic
         run: |
-          CURRENT_HOUR=$(date +%H)
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-             echo "MODE=${{ inputs.mode }}" >> $GITHUB_ENV
-          elif [ $CURRENT_HOUR -lt 10 ]; then
-             echo "MODE=publish" >> $GITHUB_ENV
+          DAY=$(date +%u)
+          HOUR=$(date +%H)
+          INPUT_MODE="${{ inputs.manual_override }}"
+
+          echo "Detected Day: $DAY, Hour: $HOUR, Input: $INPUT_MODE"
+
+          if [[ "$INPUT_MODE" == "force_interview" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "1" || "$DAY" == "5" ]]; }; then
+            echo "action=run_interview" >> $GITHUB_OUTPUT
+            echo "Selected: Interview Bot"
+          
+          elif [[ "$INPUT_MODE" == "force_story_draft" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -ge 10 ]] && [[ "$DAY" == "2" || "$DAY" == "6" ]]; }; then
+            echo "action=story_draft" >> $GITHUB_OUTPUT
+            echo "Selected: Story Bot (Draft Mode)"
+
+          elif [[ "$INPUT_MODE" == "force_story_publish" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "3" || "$DAY" == "7" ]]; }; then
+            echo "action=story_publish" >> $GITHUB_OUTPUT
+            echo "Selected: Story Bot (Publish Mode)"
+          
           else
-             echo "MODE=draft" >> $GITHUB_ENV
+            echo "action=none" >> $GITHUB_OUTPUT
+            echo "No action scheduled for this time slot."
           fi
 
-      - name: Run Bot
+      - name: 🎤 Run Interview Bot
+        if: steps.logic.outputs.action == 'run_interview'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
-        run: python main_bot.py --mode ${{ env.MODE }}
+        run: python interview_bot.py
 
-      - name: Commit & Push Changes
+      - name: 📝 Run Story Bot (Draft)
+        if: steps.logic.outputs.action == 'story_draft'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+        run: python main_bot.py --mode draft
+
+      - name: 🚀 Run Story Bot (Publish)
+        if: steps.logic.outputs.action == 'story_publish'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+        run: python main_bot.py --mode publish
+
+      - name: Commit State Changes
+        if: steps.logic.outputs.action != 'none'
         run: |
-          git config --global user.name "StoryBot"
+          git config --global user.name "AutoBot"
           git config --global user.email "bot@noreply.github.com"
           git pull
-          git add story_state.json current_draft.json images/
-          git commit -m "Bot: Processed ${{ env.MODE }} mode [skip ci]" || exit 0
+          
+          git add -f story_state.json current_draft.json interview_state.json interview_history.json images/ || true
+          
+          git commit -m "Bot: Executed ${{ steps.logic.outputs.action }} [skip ci]" || echo "No changes to commit"
           git push
