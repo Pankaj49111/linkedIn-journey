@@ -90,7 +90,15 @@ jobs:
           git config --global user.email "bot@noreply.github.com"
           git pull
           
-          git add -f story_state.json current_draft.json interview_state.json interview_history.json images/ || true
+          for file in story_state.json current_draft.json interview_state.json interview_history.json; do
+            if [ -f "$file" ]; then
+              git add -f "$file"
+            fi
+          done
+          
+          if [ -d "images/" ]; then
+            git add -f images/
+          fi
           
           git commit -m "Bot: Executed ${{ steps.logic.outputs.action }} [skip ci]" || echo "No changes to commit"
           git push
