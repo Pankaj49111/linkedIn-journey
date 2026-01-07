@@ -90,14 +90,25 @@ jobs:
           git config --global user.email "bot@noreply.github.com"
           git pull
           
-          for file in story_state.json current_draft.json interview_state.json interview_history.json; do
+          files_to_save=(
+            "story_state.json"
+            "current_draft.json"
+            "interview_state.json"
+            "interview_history.json"
+          )
+          
+          for file in "${files_to_save[@]}"; do
             if [ -f "$file" ]; then
               git add -f "$file"
+              echo "✅ Added $file"
+            else
+              echo "⚠️ Skipped $file (Not found)"
             fi
           done
           
           if [ -d "images/" ]; then
             git add -f images/
+            echo "✅ Added images directory"
           fi
           
           git commit -m "Bot: Executed ${{ steps.logic.outputs.action }} [skip ci]" || echo "No changes to commit"
