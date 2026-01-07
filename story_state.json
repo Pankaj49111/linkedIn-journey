@@ -1,6 +1,6 @@
 {
   "act_index": 1,
-  "episode": 6,
+  "episode": 7,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -14,20 +14,21 @@
     "The closer your SLI is to the user\u2019s reality, the more useful it is during a crisis.",
     "The complexity of distributed state always exceeds the sum of its local parts.",
     "Ownership of API contracts extends past the serialization layer into data persistence models",
-    "Connection pooling manages the database resource, but synchronous application code dictates the resource's lease time."
+    "Connection pooling manages the database resource, but synchronous application code dictates the resource's lease time.",
+    "The quality of a system metric is defined by what it explicitly excludes."
   ],
   "last_themes": [
-    "THE CRASH \ud83d\udea8",
     "THE METRIC LIE \ud83d\udcca",
     "THE HUMAN ALGORITHM \ud83e\udd1d",
     "THE OWNERSHIP GAP \ud83e\udde9",
-    "THE SILENT VICTORY \ud83c\udfc6"
+    "THE SILENT VICTORY \ud83c\udfc6",
+    "THE METRIC LIE \ud83d\udcca"
   ],
   "last_tech": [
-    "Event Ordering",
     "SLIs/SLOs",
     "Idempotency",
     "API Contracts",
-    "Connection Pooling"
+    "Connection Pooling",
+    "Misleading Metrics"
   ]
 }
