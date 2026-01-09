@@ -41,7 +41,9 @@ jobs:
         run: |
           DAY=$(date +%u)
           HOUR=$(date +%H)
-          INPUT_MODE="${{ inputs.manual_override }}"
+          
+          RAW_INPUT="${{ inputs.manual_override }}"
+          INPUT_MODE="${RAW_INPUT:-auto}"
 
           echo "Detected Day: $DAY, Hour: $HOUR, Input: $INPUT_MODE"
 
