@@ -1,0 +1,8 @@
+[
+  {
+    "date": "2026-01-09",
+    "topic": "nosql_misuse:Hot partitions created by innocent keys",
+    "status": "published",
+    "text": "We assume leveraging a strong compound key\u2014pairing a globally unique ID with a context ID\u2014ensures predictable scattering across a NoSQL cluster. While this holds for quiescent reads, write load is rarely uniform.\n\nFor example, a background process might update a specific reference ID entry once per thousand transactions, using that reference ID as part of the partition key scheme.\n\nEven though the composite key remains mathematically unique, this highly asymmetrical business logic causes a single partition to absorb 80% of all update latency. This effectively starves the entire cluster, making the underlying scale of the architecture irrelevant.\n\nThe root issue wasn't the mathematical data model, but a failure to model the asymmetrical write choreography. We neglected to ask: \"Under what specific, temporary, or seasonal business condition might a normally high-cardinality key suddenly behave like a constant?\" This is usually where the discussion stops being about key distribution and starts revealing how someone reasons about eventual write choreography."
+  }
+]
