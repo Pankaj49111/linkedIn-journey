@@ -38,6 +38,50 @@ FIXED_CTA = f"""
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
+# 🧠 MUTATION ENGINE (The Brain)
+# =============================
+PROMPT_MUTATIONS = {
+    "NO_CONFUSION": """
+    EDITOR REQUEST: Inject a moment of genuine uncertainty before the realization.
+    Show the narrator misreading metrics, checking the wrong logs, or feeling puzzled.
+    Do not explain the solution immediately. Make us feel the confusion.
+    """,
+
+    "CONTRADICTION_TOO_LATE": """
+    EDITOR REQUEST: Move the 'Contradiction' earlier.
+    The system behavior must defy expectation explicitly in the first half.
+    "I expected X, but Y happened."
+    """,
+
+    "IMPACT_TOO_ABSTRACT": """
+    EDITOR REQUEST: The consequences feel too theoretical.
+    Replace abstract impact with CONCRETE operational pain:
+    - PagerDuty escalation at 3 AM.
+    - A forced rollback.
+    - Customer support tickets piling up.
+    - Massive technical debt accumulation.
+    """,
+
+    "TOO_EXPLANATORY": """
+    EDITOR REQUEST: You are explaining like a textbook. Stop teaching.
+    Replace diagnostic explanations with OBSERVATIONS.
+    Show us what you saw, not how the technology works under the hood.
+    """,
+
+    "MORAL_TOO_DOC_LIKE": """
+    EDITOR REQUEST: The moral sounds like documentation or generic advice.
+    Rewrite the final sentence as a LIVED TRUTH.
+    Use declarative language. No "Always", "Ensure", "Avoid".
+    """,
+
+    "NO_HUMILITY": """
+    EDITOR REQUEST: You sound too perfect.
+    Explicitly state the wrong assumption you made.
+    Use the phrase "I assumed..." or "I was certain..." and show why you were wrong.
+    """
+}
+
+# =============================
 # NARRATIVE SPINES
 # =============================
 NARRATIVE_SPINES = {
@@ -147,18 +191,20 @@ def clean_text(text, forbidden_phrases=None):
     if not text: return ""
     text = text.replace("*", "")
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
+
+    # Clean up markdown code blocks if the LLM puts the whole post in one
+    text = text.replace("```json", "").replace("```", "")
+
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
             text = re.sub(pattern, '', text)
     return text.strip()
 
-# 🔧 NEW: ROBUST API RETRY HANDLER
+# 🔧 API RETRY HANDLER
 def generate_safe(client, prompt, model="gemini-flash-latest"):
-    """Retries API calls on 503 Overloaded errors."""
     max_retries = 3
     base_delay = 5
-
     for i in range(max_retries):
         try:
             return client.models.generate_content(
@@ -168,17 +214,15 @@ def generate_safe(client, prompt, model="gemini-flash-latest"):
             )
         except Exception as e:
             error_msg = str(e).lower()
-            # Catch 503 or Overloaded errors specifically
             if "503" in error_msg or "overloaded" in error_msg or "unavailable" in error_msg:
-                wait_time = base_delay * (2 ** i) # Exponential backoff: 5, 10, 20
+                wait_time = base_delay * (2 ** i)
                 safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... (Attempt {i+1}/{max_retries})")
                 time.sleep(wait_time)
             else:
-                raise e # Fatal error, crash immediately
-
+                raise e
     raise Exception("❌ API failed after max retries.")
 
-# 🔧 MOBILE READABILITY ENGINE
+# 🔧 FORMATTING ENGINE
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
     raw_paragraphs = re.split(r'\n+', text)
@@ -202,6 +246,9 @@ def format_for_linkedin(text):
             final_paragraphs.append(p)
     return "\n\n".join(final_paragraphs)
 
+# =============================
+# CORE STATE LOGIC
+# =============================
 def select_theme_and_tech(state):
     last_themes = state.get("last_themes", [])
     last_tech = state.get("last_tech", [])
@@ -239,14 +286,6 @@ def maybe_add_deferred_echo(state):
     Just let the wisdom inform your current reaction.
     """
 
-def get_image_from_folder():
-    if not os.path.exists(IMAGE_FOLDER): return None
-    valid_extensions = ('.png', '.jpg', '.jpeg', '.gif')
-    for file in os.listdir(IMAGE_FOLDER):
-        if file.lower().endswith(valid_extensions):
-            return os.path.join(IMAGE_FOLDER, file)
-    return None
-
 # =============================
 # LINKEDIN UTILS
 # =============================
@@ -259,6 +298,14 @@ def get_user_urn():
         return resp.json().get("sub")
     except Exception: return None
 
+def get_image_from_folder():
+    if not os.path.exists(IMAGE_FOLDER): return None
+    valid_extensions = ('.png', '.jpg', '.jpeg', '.gif')
+    for file in os.listdir(IMAGE_FOLDER):
+        if file.lower().endswith(valid_extensions):
+            return os.path.join(IMAGE_FOLDER, file)
+    return None
+
 def upload_image_to_linkedin(urn, image_path):
     safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
@@ -269,16 +316,13 @@ def upload_image_to_linkedin(urn, image_path):
         'X-Restli-Protocol-Version': '2.0.0'
     }
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
-
     try:
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
         data = resp.json().get('value') or resp.json()
         upload_url = data.get('uploadUrl')
         image_urn = data.get('image') or data.get('imageUrn')
-
         with open(image_path, 'rb') as f:
             requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
-
         return image_urn
     except Exception as e:
         safe_print(f"❌ Upload Exception: {e}")
@@ -293,7 +337,6 @@ def poll_image_status(image_urn):
         "LinkedIn-Version": LINKEDIN_API_VERSION,
         "X-Restli-Protocol-Version": "2.0.0"
     }
-
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
@@ -302,7 +345,6 @@ def poll_image_status(image_urn):
             status = None
             if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
             else: status = data.get("status") or data.get("processingState")
-
             if status == "AVAILABLE": return True
             if status in ["FAILED", "ERROR"]: return False
             time.sleep(2)
@@ -311,7 +353,6 @@ def poll_image_status(image_urn):
 
 def post_to_linkedin(urn, text, image_asset=None):
     formatted_text = format_for_linkedin(text)
-
     url = "https://api.linkedin.com/rest/posts"
     headers = {
         "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -345,132 +386,134 @@ def post_to_linkedin(urn, text, image_asset=None):
         return False
 
 # =============================
-# QUALITY GATE
+# 🔍 DIAGNOSTIC JUDGE
 # =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
 
-FAIL if ANY are true:
-1. No explicit wrong belief admitted by the narrator.
-2. No explicit contradiction where system behavior defies expectation.
-3. The realization is explained diagnostically instead of discovered emotionally.
-4. The failure has no human or operational impact.
-5. Insight feels polished instead of earned through confusion.
-6. Moral is missing, longer than one sentence, or sounds like documentation.
-7. Tone feels like content creation or explanation.
-8. Career stages, Acts, or Themes are referenced explicitly.
+Review the post below.
 
-PASS_9_PLUS only if:
-- Confidence → confusion → realization is felt.
-- Stakes are real (immediate or future).
-- Moral implies ownership or responsibility.
+FAIL if:
+1. No explicit wrong belief admitted ("I thought X...").
+2. No genuine confusion (Narrator understands too fast).
+3. Impact is abstract (No on-call, outages, or debt mentioned).
+4. Tone is explanatory/teaching instead of storytelling.
+5. Moral feels like documentation/advice.
 
-Respond with exactly:
-PASS_9_PLUS or FAIL
+OUTPUT JSON ONLY:
+{
+  "verdict": "PASS_9_PLUS" OR "FAIL",
+  "failure_axis": "NO_CONFUSION" | "CONTRADICTION_TOO_LATE" | "IMPACT_TOO_ABSTRACT" | "TOO_EXPLANATORY" | "MORAL_TOO_DOC_LIKE" | "NO_HUMILITY",
+  "editor_note": "One short sentence explaining the failure."
+}
 """
 
-# =============================
-# PROMPT BUILDER
-# =============================
 def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, act_index, echo_instruction):
     payoff_instruction = get_arc_payoff(act_index)
     return f"""
-    Role:
-    You are a Senior Backend Engineer reflecting on a real production experience.
+Role:
+You are a Senior Backend Engineer reflecting on a real production experience.
 
-    INVISIBLE CONTEXT (DO NOT PRINT):
-    - Life Stage: {act['name']} (Episode {episode})
-    - Theme: {theme['type']}
-    - Tech Focus: {tech}
+INVISIBLE CONTEXT (DO NOT PRINT):
+- Life Stage: {act['name']} (Episode {episode})
+- Theme: {theme['type']}
+- Tech Focus: {tech}
 
-    PREVIOUSLY LEARNED (Do not repeat these realizations):
-    {prev_lessons}
+PREVIOUSLY LEARNED (Do not repeat these):
+{prev_lessons}
 
-    MANDATORY NARRATIVE SPINE:
-    {spine_instructions}
+MANDATORY NARRATIVE SPINE:
+{spine_instructions}
 
-    {payoff_instruction}
-    {echo_instruction}
+{payoff_instruction}
+{echo_instruction}
 
-    CONFESSION RULE:
-    State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
-    Do NOT write meta-statements like "My explicit wrong belief was...".
+CONFESSION RULE:
+State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
 
-    STYLE RULES:
-    - No paragraph > 2 lines
-    - Active voice
-    - First 2 lines = hook (≤10 words)
-    - Emojis: Strict Limit 3-5. Use narrative/tech emojis like (🚀, 📉, 💥, 🧠, 💻, 💀, 🔍, 🏗️).
-    - EMOJI PLACEMENT: Never more than 1 per paragraph. Use only for impact.
-    - BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
-    - Stay inside the moment; no retrospectives.
-    - Include one concrete human or operational consequence (on-call, rollback, lost trust, or massive hidden debt).
+STYLE RULES:
+- No paragraph > 2 lines
+- Active voice
+- First 2 lines = hook (≤10 words)
+- Emojis: Strict Limit 3-5. Use narrative/tech emojis.
+- BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
+- Stay inside the moment; no retrospectives.
+- Include one concrete human or operational consequence (on-call, rollback, lost trust).
 
-    CREATIVITY VALVE:
-    If following every single rule strictly would make the post sound robotic or stiff, prioritize Emotional Truth over rigid structure. 
-    Do not announce this deviation, just write the story authentically.
+STRICT FORMAT:
+- End the post EXACTLY after the Moral sentence.
+- Moral must be DECLARATIVE statements of truth.
+- BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
+- Format:
+  "The Moral 👇"
+  [One sharp sentence]
+  [STOP WRITING HERE]
 
-    STRICT FORMAT:
-    - End the post EXACTLY after the Moral sentence.
-    - Moral must be DECLARATIVE statements of truth.
-    - BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
-    - Format:
-      "The Moral 👇"
-      [One sharp sentence]
-      [STOP WRITING HERE]
+OUTPUT JSON ONLY:
+{{
+  "post_text": "...",
+  "lesson_extracted": "One uncomfortable lesson in one sentence"
+}}
 
-    - Do NOT add hashtags (I will add them).
-    - Do NOT use markdown.
-
-    OUTPUT JSON ONLY:
-    {{
-      "post_text": "...",
-      "lesson_extracted": "One uncomfortable lesson in one sentence"
-    }}
-
-    Length: 150–200 words
-    """
+Length: 150–200 words
+"""
 
 # =============================
-# GENERATE + REVIEW LOOP
+# 🔄 MUTATION LOOP (Generate -> Diagnose -> Mutate -> Fix)
 # =============================
 def generate_with_review(client, prompt, forbidden_phrases):
+    current_prompt = prompt
+    last_content = None
+
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        response = generate_safe(client, prompt)
-
+        # 1. Generate
+        response = generate_safe(client, current_prompt)
         try:
             content = json.loads(response.text)
         except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON received. Retrying...")
+            safe_print("⚠️ Invalid JSON from Generator. Retrying...")
             continue
 
         post = clean_text(content["post_text"], forbidden_phrases)
+        content["post_text"] = post
+        last_content = content
 
-        verdict_response = generate_safe(
+        # 2. Diagnose
+        judge_resp = generate_safe(
             client,
             f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
         )
-        verdict = verdict_response.text.strip()
 
-        safe_print(f"🕵️ Editor Verdict: {verdict}")
+        try:
+            # Clean formatting from Judge output (sometimes it adds ```json)
+            raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
+            verdict_data = json.loads(raw_judge)
+        except json.JSONDecodeError:
+            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL and retrying...")
+            verdict_data = {"verdict": "FAIL", "failure_axis": "NO_HUMILITY"}
 
-        if verdict == "PASS_9_PLUS":
-            content["post_text"] = post
+        safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
+
+        # 3. Pass?
+        if verdict_data.get("verdict") == "PASS_9_PLUS":
             return content
 
-        prompt += """
-        Rewrite with:
-        - One explicit wrong belief stated in first person
-        - One moment of confusion before the realization
-        - One concrete human or operational consequence
-        - Insight discovered, not explained
-        - Moral: Declarative truth only. NO advice verbs ("Avoid", "Always").
-        - Place exactly ONE sentence AFTER the line "The Moral 👇"
-        """
+        # 4. Mutate (The Fix)
+        axis = verdict_data.get("failure_axis", "NO_HUMILITY")
+        mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
 
-    safe_print("❌ Failed strict quality gate twice.")
+        safe_print(f"💉 Injecting Mutation: {axis}")
+
+        current_prompt += f"\n\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
+
+    # 5. Soft Landing (Fallback)
+    safe_print("⚠️ Quality Gate failed twice. Deploying best available draft (Soft Landing).")
+    if last_content:
+        return last_content
+
+    safe_print("❌ Critical Failure: No content generated.")
     sys.exit(1)
 
 def run_draft_mode():
