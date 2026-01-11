@@ -146,85 +146,81 @@ def save_json(path, data):
 def clean_text(text, forbidden_phrases=None):
     if not text: return ""
     text = text.replace("*", "")
-
-    # Remove labels like "Hook:", "Body:"
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
-
-    # SMART SCRUBBER: Removes forbidden phrases ONLY if they are the whole line
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
             text = re.sub(pattern, '', text)
-
     return text.strip()
 
+# 🔧 NEW: ROBUST API RETRY HANDLER
+def generate_safe(client, prompt, model="gemini-flash-latest"):
+    """Retries API calls on 503 Overloaded errors."""
+    max_retries = 3
+    base_delay = 5
+
+    for i in range(max_retries):
+        try:
+            return client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
+        except Exception as e:
+            error_msg = str(e).lower()
+            # Catch 503 or Overloaded errors specifically
+            if "503" in error_msg or "overloaded" in error_msg or "unavailable" in error_msg:
+                wait_time = base_delay * (2 ** i) # Exponential backoff: 5, 10, 20
+                safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... (Attempt {i+1}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                raise e # Fatal error, crash immediately
+
+    raise Exception("❌ API failed after max retries.")
+
+# 🔧 MOBILE READABILITY ENGINE
 def format_for_linkedin(text):
-    """
-    Ensures stories are readable on mobile.
-    1. Breaks huge paragraphs (>250 chars) into smaller chunks.
-    2. Forces DOUBLE NEWLINES between every paragraph.
-    """
-    # Normalize line endings
     text = text.replace('\r\n', '\n').strip()
-
-    # Split by existing newlines
     raw_paragraphs = re.split(r'\n+', text)
-
     final_paragraphs = []
     for p in raw_paragraphs:
         p = p.strip()
         if not p: continue
-
-        # If paragraph is too long, split it intelligently
         if len(p) > 250:
-            # Split by sentence endings
             sentences = re.split(r'(?<=[.!?]) +', p)
             chunk = ""
             count = 0
-
             for s in sentences:
                 chunk += s + " "
                 count += 1
-                # Group 2 sentences per block max
                 if count >= 2:
                     final_paragraphs.append(chunk.strip())
                     chunk = ""
                     count = 0
-
-            if chunk:
-                final_paragraphs.append(chunk.strip())
+            if chunk: final_paragraphs.append(chunk.strip())
         else:
             final_paragraphs.append(p)
-
     return "\n\n".join(final_paragraphs)
 
 def select_theme_and_tech(state):
     last_themes = state.get("last_themes", [])
     last_tech = state.get("last_tech", [])
-
     eligible_themes = [t for t in THEMES if t["type"] not in last_themes[-3:]] or THEMES
     theme = random.choice(eligible_themes)
-
     tech_pool = []
     for cat in theme["allowed_tech"]:
         tech_pool.extend(TECH_FOCUS_AREAS.get(cat, []))
-
     final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]] or tech_pool
-
     return theme, random.choice(final_tech_pool)
 
 def select_spine():
-    """Weighted random selection of narrative spines"""
     spines = list(NARRATIVE_SPINES.keys())
     weights = [NARRATIVE_SPINES[k]["weight"] for k in spines]
     selected_key = random.choices(spines, weights=weights, k=1)[0]
     return selected_key, NARRATIVE_SPINES[selected_key]["instructions"]
 
 def get_arc_payoff(act_index):
-    """Returns narrative instruction based on Career Act (Long-term Arc)"""
-    if act_index <= 2:
-        return "" # No special instruction, just pure experience
-
+    if act_index <= 2: return ""
     return """
     LONG-TERM PAYOFF INSTRUCTION:
     You are now in a later stage of your career (Act IV+).
@@ -234,12 +230,8 @@ def get_arc_payoff(act_index):
     """
 
 def maybe_add_deferred_echo(state):
-    """Adds a subtle callback to previous lessons every 5 episodes"""
-    if state["episode"] % 5 != 0:
-        return ""
-    if not state.get("previous_lessons"):
-        return ""
-
+    if state["episode"] % 5 != 0: return ""
+    if not state.get("previous_lessons"): return ""
     return """
     NARRATIVE DEPTH INSTRUCTION:
     Subtly echo a past mistake conceptually without restating it explicitly.
@@ -327,15 +319,12 @@ def post_to_linkedin(urn, text, image_asset=None):
         "X-Restli-Protocol-Version": "2.0.0",
         "LinkedIn-Version": LINKEDIN_API_VERSION
     }
-
     full_text = formatted_text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
-
     if len(full_text) > 2800:
         keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
         available_space = 2797 - keep_length
         text = text[:available_space] + "..."
         full_text = text + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
-
     payload = {
         "author": f"urn:li:person:{urn}",
         "commentary": full_text,
@@ -344,10 +333,8 @@ def post_to_linkedin(urn, text, image_asset=None):
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False
     }
-
     if image_asset:
         payload["content"] = {"media": {"title": "Tech Insight", "id": image_asset}}
-
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=30)
         if resp.status_code == 201: return True
@@ -367,7 +354,7 @@ FAIL if ANY are true:
 1. No explicit wrong belief admitted by the narrator.
 2. No explicit contradiction where system behavior defies expectation.
 3. The realization is explained diagnostically instead of discovered emotionally.
-4. The failure has no human or operational impact (user-visible damage, on-call pressure, rollback, escalation, or hidden debt).
+4. The failure has no human or operational impact.
 5. Insight feels polished instead of earned through confusion.
 6. Moral is missing, longer than one sentence, or sounds like documentation.
 7. Tone feels like content creation or explanation.
@@ -386,62 +373,63 @@ PASS_9_PLUS or FAIL
 # PROMPT BUILDER
 # =============================
 def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, act_index, echo_instruction):
-
     payoff_instruction = get_arc_payoff(act_index)
-
     return f"""
-Role:
-You are a Senior Backend Engineer reflecting on a real production experience.
+    Role:
+    You are a Senior Backend Engineer reflecting on a real production experience.
 
-INVISIBLE CONTEXT (DO NOT PRINT):
-- Life Stage: {act['name']}
-- Theme: {theme['type']}
-- Tech Focus: {tech}
+    INVISIBLE CONTEXT (DO NOT PRINT):
+    - Life Stage: {act['name']} (Episode {episode})
+    - Theme: {theme['type']}
+    - Tech Focus: {tech}
 
-MANDATORY NARRATIVE SPINE:
-{spine_instructions}
+    PREVIOUSLY LEARNED (Do not repeat these realizations):
+    {prev_lessons}
 
-{payoff_instruction}
-{echo_instruction}
+    MANDATORY NARRATIVE SPINE:
+    {spine_instructions}
 
-CONFESSION RULE:
-State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
-Do NOT write meta-statements like "My explicit wrong belief was...".
+    {payoff_instruction}
+    {echo_instruction}
 
-STYLE RULES:
-- No paragraph > 2 lines
-- Active voice
-- First 2 lines = hook (≤10 words)
-- Emojis: Strict Limit 3-5. Use narrative/tech emojis like (🚀, 📉, 💥, 🧠, 💻, 💀, 🔍, 🏗️).
-- EMOJI PLACEMENT: Never more than 1 per paragraph. Use only for impact.
-- BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
-- Stay inside the moment; no retrospectives.
-- Include one concrete human or operational consequence (on-call, rollback, lost trust, or massive hidden debt).
+    CONFESSION RULE:
+    State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
+    Do NOT write meta-statements like "My explicit wrong belief was...".
 
-CREATIVITY VALVE:
-If following every single rule strictly would make the post sound robotic or stiff, prioritize Emotional Truth over rigid structure. 
-Do not announce this deviation, just write the story authentically.
+    STYLE RULES:
+    - No paragraph > 2 lines
+    - Active voice
+    - First 2 lines = hook (≤10 words)
+    - Emojis: Strict Limit 3-5. Use narrative/tech emojis like (🚀, 📉, 💥, 🧠, 💻, 💀, 🔍, 🏗️).
+    - EMOJI PLACEMENT: Never more than 1 per paragraph. Use only for impact.
+    - BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
+    - Stay inside the moment; no retrospectives.
+    - Include one concrete human or operational consequence (on-call, rollback, lost trust, or massive hidden debt).
 
-STRICT FORMAT:
-- End the post EXACTLY after the Moral sentence.
-- Moral must be DECLARATIVE statements of truth.
-- BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
-- Format:
-  "The Moral 👇"
-  [One sharp sentence]
-  [STOP WRITING HERE]
+    CREATIVITY VALVE:
+    If following every single rule strictly would make the post sound robotic or stiff, prioritize Emotional Truth over rigid structure. 
+    Do not announce this deviation, just write the story authentically.
 
-- Do NOT add hashtags (I will add them).
-- Do NOT use markdown.
+    STRICT FORMAT:
+    - End the post EXACTLY after the Moral sentence.
+    - Moral must be DECLARATIVE statements of truth.
+    - BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
+    - Format:
+      "The Moral 👇"
+      [One sharp sentence]
+      [STOP WRITING HERE]
 
-OUTPUT JSON ONLY:
-{{
-  "post_text": "...",
-  "lesson_extracted": "One uncomfortable lesson in one sentence"
-}}
+    - Do NOT add hashtags (I will add them).
+    - Do NOT use markdown.
 
-Length: 150–200 words
-"""
+    OUTPUT JSON ONLY:
+    {{
+      "post_text": "...",
+      "lesson_extracted": "One uncomfortable lesson in one sentence"
+    }}
+
+    Length: 150–200 words
+    """
 
 # =============================
 # GENERATE + REVIEW LOOP
@@ -450,18 +438,21 @@ def generate_with_review(client, prompt, forbidden_phrases):
     for attempt in range(2):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        response = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=prompt,
-            config={"response_mime_type": "application/json"}
-        )
-        content = json.loads(response.text)
+        response = generate_safe(client, prompt)
+
+        try:
+            content = json.loads(response.text)
+        except json.JSONDecodeError:
+            safe_print("⚠️ Invalid JSON received. Retrying...")
+            continue
+
         post = clean_text(content["post_text"], forbidden_phrases)
 
-        verdict = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
-        ).text.strip()
+        verdict_response = generate_safe(
+            client,
+            f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
+        )
+        verdict = verdict_response.text.strip()
 
         safe_print(f"🕵️ Editor Verdict: {verdict}")
 
@@ -482,18 +473,13 @@ def generate_with_review(client, prompt, forbidden_phrases):
     safe_print("❌ Failed strict quality gate twice.")
     sys.exit(1)
 
-# =============================
-# DRAFT MODE
-# =============================
 def run_draft_mode():
     state = load_json(STATE_FILE)
     client = genai.Client(api_key=GEMINI_KEY)
 
-    # 1. Select Content
     act = ACTS[state["act_index"]]
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
-
     spine_name, spine_steps = select_spine()
     echo_instr = maybe_add_deferred_echo(state)
 
@@ -506,7 +492,6 @@ def run_draft_mode():
     print("="*40 + "\n")
 
     prompt = build_prompt(act, state["episode"], theme, tech, prev, spine_steps, state["act_index"], echo_instr)
-
     forbidden = [act["name"], theme["type"]] + [t["type"] for t in THEMES]
 
     content = generate_with_review(client, prompt, forbidden)
@@ -518,7 +503,6 @@ def run_draft_mode():
     content["post_text"] = format_for_linkedin(content["post_text"])
 
     save_json(DRAFT_FILE, content)
-
     print("\n✅ DRAFT SAVED:")
     safe_print(content["post_text"][:150] + "...")
 
@@ -536,7 +520,6 @@ def run_publish_mode():
         safe_print("❌ Invalid LinkedIn token.")
         return
 
-    # Image Handling
     media_urn = None
     image_path = get_image_from_folder()
     if image_path:
@@ -548,23 +531,15 @@ def run_publish_mode():
             safe_print("⚠️ Image failed. Posting text only.")
             media_urn = None
 
-    # Post
     success = post_to_linkedin(urn, draft["post_text"], media_urn)
-    if not success:
-        return
+    if not success: return
 
     state = load_json(STATE_FILE)
-
-    # Update History
     state["previous_lessons"].append(draft["lesson_extracted"])
     state.setdefault("last_themes", []).append(draft["meta_theme"])
     state.setdefault("last_tech", []).append(draft["meta_tech"])
-
-    # Trim History
     state["last_themes"] = state["last_themes"][-5:]
     state["last_tech"] = state["last_tech"][-5:]
-
-    # Advance Episode
     state["episode"] += 1
     if state["episode"] > ACTS[state["act_index"]]["max_episodes"]:
         state["episode"] = 1
@@ -575,15 +550,9 @@ def run_publish_mode():
     if image_path: os.remove(image_path)
     safe_print("🚀 Published successfully.")
 
-# =============================
-# ENTRYPOINT
-# =============================
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["draft", "publish"], required=True)
     args = parser.parse_args()
-
-    if args.mode == "draft":
-        run_draft_mode()
-    elif args.mode == "publish":
-        run_publish_mode()
+    if args.mode == "draft": run_draft_mode()
+    elif args.mode == "publish": run_publish_mode()
