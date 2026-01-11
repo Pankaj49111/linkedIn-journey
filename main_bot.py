@@ -3,11 +3,13 @@ import json
 import argparse
 import requests
 from google import genai
+from google.genai import types
 import sys
 import time
 import urllib.parse
 import re
 import random
+from datetime import datetime
 
 # =============================
 # FORCE UTF-8 OUTPUT
@@ -22,6 +24,7 @@ LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
 
 STATE_FILE = "story_state.json"
 DRAFT_FILE = "current_draft.json"
+FAILED_DRAFTS_FILE = "failed_drafts.json"
 IMAGE_FOLDER = "images"
 
 LINKEDIN_API_VERSION = "202411"
@@ -38,21 +41,20 @@ FIXED_CTA = f"""
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
-# 🧠 MUTATION ENGINE (The Brain)
+# 🧠 MUTATION ENGINE
 # =============================
 PROMPT_MUTATIONS = {
+    # --- LLM DETECTED ISSUES ---
     "NO_CONFUSION": """
     EDITOR REQUEST: Inject a moment of genuine uncertainty before the realization.
     Show the narrator misreading metrics, checking the wrong logs, or feeling puzzled.
     Do not explain the solution immediately. Make us feel the confusion.
     """,
-
     "CONTRADICTION_TOO_LATE": """
     EDITOR REQUEST: Move the 'Contradiction' earlier.
     The system behavior must defy expectation explicitly in the first half.
     "I expected X, but Y happened."
     """,
-
     "IMPACT_TOO_ABSTRACT": """
     EDITOR REQUEST: The consequences feel too theoretical.
     Replace abstract impact with CONCRETE operational pain:
@@ -61,23 +63,30 @@ PROMPT_MUTATIONS = {
     - Customer support tickets piling up.
     - Massive technical debt accumulation.
     """,
-
     "TOO_EXPLANATORY": """
     EDITOR REQUEST: You are explaining like a textbook. Stop teaching.
     Replace diagnostic explanations with OBSERVATIONS.
     Show us what you saw, not how the technology works under the hood.
     """,
-
     "MORAL_TOO_DOC_LIKE": """
     EDITOR REQUEST: The moral sounds like documentation or generic advice.
     Rewrite the final sentence as a LIVED TRUTH.
     Use declarative language. No "Always", "Ensure", "Avoid".
     """,
-
     "NO_HUMILITY": """
     EDITOR REQUEST: You sound too perfect.
     Explicitly state the wrong assumption you made.
     Use the phrase "I assumed..." or "I was certain..." and show why you were wrong.
+    """,
+
+    # --- DETERMINISTIC REGEX ISSUES ---
+    "MISSING_CONFESSION_KEYWORD": """
+    CRITICAL STRUCTURE FAILURE: You missed the mandatory confession phrase.
+    You MUST include one of these exact phrases: "I assumed", "I thought", "I was certain", "I expected".
+    """,
+    "MORAL_STRUCTURE_FAIL": """
+    CRITICAL STRUCTURE FAILURE: The moral section is malformed.
+    Ensure exactly ONE sentence appears after 'The Moral 👇'.
     """
 }
 
@@ -124,9 +133,6 @@ NARRATIVE_SPINES = {
     }
 }
 
-# =============================
-# ACTS (CAREER ARC)
-# =============================
 ACTS = [
     {"name": "ACT I – Early Confidence & First Systems", "max_episodes": 8},
     {"name": "ACT II – Scaling Pressure & Hidden Complexity", "max_episodes": 10},
@@ -136,9 +142,6 @@ ACTS = [
     {"name": "ACT VI – Judgment, Restraint, Engineering Wisdom", "max_episodes": 6},
 ]
 
-# =============================
-# TECH FOCUS AREAS
-# =============================
 TECH_FOCUS_AREAS = {
     "distributed_data": ["Cassandra", "CQRS", "Schema Evolution"],
     "caching": ["Redis", "Cache Invalidation", "Distributed Locking"],
@@ -148,9 +151,6 @@ TECH_FOCUS_AREAS = {
     "ownership": ["API Contracts", "Dependency Drift", "Legacy Migrations"]
 }
 
-# =============================
-# THEMES
-# =============================
 THEMES = [
     {"type": "THE ARCHITECTURAL TRAP 🏗️", "tone": "Humble, analytical", "allowed_tech": ["distributed_data", "caching", "async"]},
     {"type": "THE HUMAN ALGORITHM 🤝", "tone": "Reflective, empathetic", "allowed_tech": ["ownership", "async", "observability"]},
@@ -174,14 +174,11 @@ def safe_print(text):
 
 def load_json(path):
     if not os.path.exists(path):
-        return {
-            "act_index": 0, "episode": 1, "previous_lessons": [],
-            "last_themes": [], "last_tech": []
-        }
+        return {"act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": []}
     try:
         with open(path, "r", encoding="utf-8") as f: return json.load(f)
     except Exception:
-        return { "act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": [] }
+        return {"act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": []}
 
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
@@ -191,26 +188,47 @@ def clean_text(text, forbidden_phrases=None):
     if not text: return ""
     text = text.replace("*", "")
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
-
-    # Clean up markdown code blocks if the LLM puts the whole post in one
     text = text.replace("```json", "").replace("```", "")
-
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
             text = re.sub(pattern, '', text)
     return text.strip()
 
-# 🔧 API RETRY HANDLER
-def generate_safe(client, prompt, model="gemini-flash-latest"):
+def log_failure(post, axis, note):
+    """Logs failed drafts for future training/prompt refinement."""
+    if not os.path.exists(FAILED_DRAFTS_FILE):
+        failures = []
+    else:
+        try:
+            with open(FAILED_DRAFTS_FILE, "r", encoding="utf-8") as f: failures = json.load(f)
+        except: failures = []
+
+    failures.append({
+        "date": datetime.now().isoformat(),
+        "axis": axis,
+        "note": note,
+        "post_snippet": post[:200]
+    })
+    # Keep only last 50 failures
+    save_json(FAILED_DRAFTS_FILE, failures[-50:])
+
+# 🔧 API RETRY HANDLER WITH TEMPERATURE CONTROL
+def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
     max_retries = 3
     base_delay = 5
+
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=temperature
+    )
+
     for i in range(max_retries):
         try:
             return client.models.generate_content(
                 model=model,
                 contents=prompt,
-                config={"response_mime_type": "application/json"}
+                config=config
             )
         except Exception as e:
             error_msg = str(e).lower()
@@ -222,11 +240,48 @@ def generate_safe(client, prompt, model="gemini-flash-latest"):
                 raise e
     raise Exception("❌ API failed after max retries.")
 
-# 🔧 FORMATTING ENGINE
+# 🔧 1. DETERMINISTIC PRE-FLIGHT CHECK
+def structural_precheck(post):
+    """
+    Cheap, fast regex checks to catch failures before asking the LLM Judge.
+    Returns: (Passed: bool, FailureAxis: str|None)
+    """
+    # 1. Confession Check
+    # Looks for "I assumed", "I thought", "I expected", "I was certain"
+    if not re.search(r"\bI (assumed|thought|was certain|expected|guessed)\b", post, re.IGNORECASE):
+        return False, "MISSING_CONFESSION_KEYWORD"
+
+    # 2. Moral Structure Check
+    if "The Moral 👇" not in post:
+        return False, "MORAL_STRUCTURE_FAIL"
+
+    # Check if moral is too long (more than 1 sentence/period)
+    moral_part = post.split("The Moral 👇")[-1].strip()
+    if moral_part.count(".") > 1:
+        # It's okay if it ends with a period, but if there's a period in the middle, it's 2 sentences.
+        # A simple check: split by dot, remove empty strings. If > 1, it's likely too long.
+        segments = [s for s in moral_part.split(".") if len(s.strip()) > 2]
+        if len(segments) > 1:
+            return False, "MORAL_STRUCTURE_FAIL"
+
+    return True, None
+
+# 🔧 2. FORMATTING ENGINE
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
+
+    # Hook Isolation
+    match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
+    if match:
+        hook = match.group(1).strip()
+        rest = match.group(3).strip()
+        if len(hook) < 150:
+            text = f"{hook}\n\n{rest}"
+
+    # Paragraph Splitting
     raw_paragraphs = re.split(r'\n+', text)
     final_paragraphs = []
+
     for p in raw_paragraphs:
         p = p.strip()
         if not p: continue
@@ -244,10 +299,24 @@ def format_for_linkedin(text):
             if chunk: final_paragraphs.append(chunk.strip())
         else:
             final_paragraphs.append(p)
+
     return "\n\n".join(final_paragraphs)
 
+def enforce_single_moral(text):
+    if "The Moral 👇" not in text:
+        return text
+    parts = text.split("The Moral 👇")
+    body = parts[0]
+    moral_section = parts[1].strip()
+    first_sentence_match = re.match(r'(.*?[.!?])', moral_section, re.DOTALL)
+    if first_sentence_match:
+        clean_moral = first_sentence_match.group(1).strip()
+        return f"{body.strip()}\n\nThe Moral 👇\n\n{clean_moral}"
+    else:
+        return text
+
 # =============================
-# CORE STATE LOGIC
+# LOGIC
 # =============================
 def select_theme_and_tech(state):
     last_themes = state.get("last_themes", [])
@@ -309,12 +378,7 @@ def get_image_from_folder():
 def upload_image_to_linkedin(urn, image_path):
     safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-    headers = {
-        'Authorization': f'Bearer {LINKEDIN_TOKEN}',
-        'Content-Type': 'application/json',
-        'LinkedIn-Version': LINKEDIN_API_VERSION,
-        'X-Restli-Protocol-Version': '2.0.0'
-    }
+    headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}', 'Content-Type': 'application/json', 'LinkedIn-Version': LINKEDIN_API_VERSION, 'X-Restli-Protocol-Version': '2.0.0'}
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
     try:
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
@@ -332,11 +396,7 @@ def poll_image_status(image_urn):
     if not image_urn: return False
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
-    headers = {
-        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
-        "LinkedIn-Version": LINKEDIN_API_VERSION,
-        "X-Restli-Protocol-Version": "2.0.0"
-    }
+    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "LinkedIn-Version": LINKEDIN_API_VERSION, "X-Restli-Protocol-Version": "2.0.0"}
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
@@ -352,15 +412,12 @@ def poll_image_status(image_urn):
     return False
 
 def post_to_linkedin(urn, text, image_asset=None):
-    formatted_text = format_for_linkedin(text)
+    text = format_for_linkedin(text)
+    text = enforce_single_moral(text)
+
     url = "https://api.linkedin.com/rest/posts"
-    headers = {
-        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": LINKEDIN_API_VERSION
-    }
-    full_text = formatted_text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
+    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0", "LinkedIn-Version": LINKEDIN_API_VERSION}
+    full_text = text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
     if len(full_text) > 2800:
         keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
         available_space = 2797 - keep_length
@@ -386,40 +443,43 @@ def post_to_linkedin(urn, text, image_asset=None):
         return False
 
 # =============================
-# 🔍 DIAGNOSTIC JUDGE
+# JUDGE & PROMPT
 # =============================
 QUALITY_GATE_PROMPT = """
 Role: Critical Staff+ Editor.
-
 Review the post below.
 
+If multiple failures exist, select ONLY the most dominant one blocking PASS.
+
 FAIL if:
-1. No explicit wrong belief admitted ("I thought X...").
-2. No genuine confusion (Narrator understands too fast).
-3. Impact is abstract (No on-call, outages, or debt mentioned).
-4. Tone is explanatory/teaching instead of storytelling.
-5. Moral feels like documentation/advice.
+1. No explicit wrong belief admitted.
+2. No genuine confusion.
+3. Impact is abstract.
+4. Tone is explanatory/teaching.
+5. Moral feels like documentation.
 
 OUTPUT JSON ONLY:
 {
   "verdict": "PASS_9_PLUS" OR "FAIL",
   "failure_axis": "NO_CONFUSION" | "CONTRADICTION_TOO_LATE" | "IMPACT_TOO_ABSTRACT" | "TOO_EXPLANATORY" | "MORAL_TOO_DOC_LIKE" | "NO_HUMILITY",
-  "editor_note": "One short sentence explaining the failure."
+  "editor_note": "Reason"
 }
 """
 
 def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, act_index, echo_instruction):
     payoff_instruction = get_arc_payoff(act_index)
+
+    # [[EDITOR_FEEDBACK_SLOT]] - Placeholder for mutation injection
     return f"""
 Role:
 You are a Senior Backend Engineer reflecting on a real production experience.
 
-INVISIBLE CONTEXT (DO NOT PRINT):
+INVISIBLE CONTEXT:
 - Life Stage: {act['name']} (Episode {episode})
 - Theme: {theme['type']}
 - Tech Focus: {tech}
 
-PREVIOUSLY LEARNED (Do not repeat these):
+PREVIOUSLY LEARNED (Do not repeat):
 {prev_lessons}
 
 MANDATORY NARRATIVE SPINE:
@@ -428,6 +488,8 @@ MANDATORY NARRATIVE SPINE:
 {payoff_instruction}
 {echo_instruction}
 
+[[EDITOR_FEEDBACK_SLOT]]
+
 CONFESSION RULE:
 State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
 
@@ -435,15 +497,14 @@ STYLE RULES:
 - No paragraph > 2 lines
 - Active voice
 - First 2 lines = hook (≤10 words)
-- Emojis: Strict Limit 3-5. Use narrative/tech emojis.
-- BANNED EMOJIS: 🚫 No thinking (🤔), shrugging (🤷), or generic smiles.
+- Emojis: Strict Limit 3-5.
 - Stay inside the moment; no retrospectives.
-- Include one concrete human or operational consequence (on-call, rollback, lost trust).
+- Include one concrete human or operational consequence.
 
 STRICT FORMAT:
 - End the post EXACTLY after the Moral sentence.
 - Moral must be DECLARATIVE statements of truth.
-- BANNED in Moral: Imperatives/Advice verbs like "Avoid", "Always", "Never", "Ensure", "Don't".
+- Avoid absolute generalizations. Keep scope local to the incident.
 - Format:
   "The Moral 👇"
   [One sharp sentence]
@@ -454,68 +515,86 @@ OUTPUT JSON ONLY:
   "post_text": "...",
   "lesson_extracted": "One uncomfortable lesson in one sentence"
 }}
-
 Length: 150–200 words
 """
 
 # =============================
-# 🔄 MUTATION LOOP (Generate -> Diagnose -> Mutate -> Fix)
+# MUTATION LOOP (Convergent)
 # =============================
-def generate_with_review(client, prompt, forbidden_phrases):
-    current_prompt = prompt
+def generate_with_review(client, base_prompt, forbidden_phrases):
     last_content = None
+    feedback_text = "" # Starts empty
 
-    for attempt in range(2):
+    # 3-4 attempts, convergent temperature
+    MAX_ATTEMPTS = 4
+
+    for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        # 1. Generate
-        response = generate_safe(client, current_prompt)
+        # 1. Temperature Control (Explore -> Converge)
+        temp = 0.7 if attempt == 0 else 0.4
+
+        # 2. Slot Replacement (Clean Prompting)
+        current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
+
+        # 3. Generate
+        response = generate_safe(client, current_prompt, temperature=temp)
         try:
             content = json.loads(response.text)
         except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON from Generator. Retrying...")
+            safe_print("⚠️ Invalid JSON. Retrying...")
             continue
 
         post = clean_text(content["post_text"], forbidden_phrases)
         content["post_text"] = post
         last_content = content
 
-        # 2. Diagnose
-        judge_resp = generate_safe(
-            client,
-            f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}"
-        )
+        # 4. PRE-FLIGHT DETERMINISTIC CHECK (Cheap & Fast)
+        passed_structure, failure_axis = structural_precheck(post)
+        if not passed_structure:
+            safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
 
+            if attempt < MAX_ATTEMPTS - 1:
+                mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
+                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
+                continue # Skip LLM Judge, go straight to retry
+
+        # 5. LLM Judge
+        judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
         try:
-            # Clean formatting from Judge output (sometimes it adds ```json)
             raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
             verdict_data = json.loads(raw_judge)
         except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL and retrying...")
+            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL.")
             verdict_data = {"verdict": "FAIL", "failure_axis": "NO_HUMILITY"}
 
         safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
 
-        # 3. Pass?
         if verdict_data.get("verdict") == "PASS_9_PLUS":
             return content
 
-        # 4. Mutate (The Fix)
+        # 6. Prepare Feedback for Next Loop
         axis = verdict_data.get("failure_axis", "NO_HUMILITY")
         mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
-
         safe_print(f"💉 Injecting Mutation: {axis}")
 
-        current_prompt += f"\n\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
+        # Overwrite slot for next run
+        feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
 
-    # 5. Soft Landing (Fallback)
-    safe_print("⚠️ Quality Gate failed twice. Deploying best available draft (Soft Landing).")
+    # 7. Final Failure Logic
+    safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
+
+    # Log the failure for data analysis
     if last_content:
+        log_failure(last_content["post_text"], axis, verdict_data.get("editor_note", "Max attempts reached"))
         return last_content
 
     safe_print("❌ Critical Failure: No content generated.")
     sys.exit(1)
 
+# =============================
+# MODES
+# =============================
 def run_draft_mode():
     state = load_json(STATE_FILE)
     client = genai.Client(api_key=GEMINI_KEY)
@@ -531,27 +610,23 @@ def run_draft_mode():
     safe_print(f"🦴 SPINE: {spine_name}")
     safe_print(f"🎰 THEME: {theme['type']}")
     safe_print(f"🛠️ TECH:  {tech}")
-    if echo_instr: safe_print("📢 ECHO:  Injecting deferred lesson depth...")
     print("="*40 + "\n")
 
-    prompt = build_prompt(act, state["episode"], theme, tech, prev, spine_steps, state["act_index"], echo_instr)
+    base_prompt = build_prompt(act, state["episode"], theme, tech, prev, spine_steps, state["act_index"], echo_instr)
     forbidden = [act["name"], theme["type"]] + [t["type"] for t in THEMES]
 
-    content = generate_with_review(client, prompt, forbidden)
+    content = generate_with_review(client, base_prompt, forbidden)
     content["meta_theme"] = theme["type"]
     content["meta_tech"] = tech
     content["meta_spine"] = spine_name
 
-    # 🔧 APPLY FORMATTING FIX BEFORE SAVING DRAFT
     content["post_text"] = format_for_linkedin(content["post_text"])
+    content["post_text"] = enforce_single_moral(content["post_text"])
 
     save_json(DRAFT_FILE, content)
     print("\n✅ DRAFT SAVED:")
     safe_print(content["post_text"][:150] + "...")
 
-# =============================
-# PUBLISH MODE
-# =============================
 def run_publish_mode():
     draft = load_json(DRAFT_FILE)
     if not draft:
