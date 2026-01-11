@@ -1,7 +1,0 @@
-{
-  "post_text": "Scaling felt safe. Then the metrics lied.\nI was certain we had the scaling model locked down for the Auth service. We optimized heavily and the P95 latency looked beautiful: flat, fast.\nI assumed that P95 latency was the ultimate indicator of user experience.\nThe Black Friday wave hit. Traffic spiked 300%. \ud83d\ude80\nOur main alerts screamed, but not for latency. Upstream services started issuing massive 504 timeouts.\nI stared at the dashboard. P95 was holding steady at 45ms. How was the system crumbling with perfect observed performance? \ud83d\udc80\nThe contradiction was jarring. Production was actively failing, yet the primary metric we used to define success looked green.\nWe dove deep. Hours later, we found the killer: massive, full-stop Garbage Collection pauses. The service was spending 80% of its time cleaning heap, not serving requests.\nThe request timer only measured the time inside the processing thread, ignoring the CPU stall caused by GC. \ud83e\udde0\nWe had been horizontally scaling replicas based on a metric that masked critical resource exhaustion.\nThat required an emergency on-call rotation and a complex rollback plan involving the load balancer configuration.\nThe Moral \ud83d\udc47\nThe quality of a system metric is defined by what it explicitly excludes.",
-  "lesson_extracted": "The quality of a system metric is defined by what it explicitly excludes.",
-  "meta_theme": "THE METRIC LIE \ud83d\udcca",
-  "meta_tech": "Misleading Metrics",
-  "meta_spine": "CLASSIC_FAILURE"
-}

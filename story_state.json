@@ -1,6 +1,6 @@
 {
   "act_index": 1,
-  "episode": 8,
+  "episode": 7,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -15,7 +15,6 @@
     "The complexity of distributed state always exceeds the sum of its local parts.",
     "Ownership of API contracts extends past the serialization layer into data persistence models",
     "Connection pooling manages the database resource, but synchronous application code dictates the resource's lease time.",
-    "The quality of a system metric is defined by what it explicitly excludes.",
     "The quality of a system metric is defined by what it explicitly excludes."
   ],
   "last_themes": [
