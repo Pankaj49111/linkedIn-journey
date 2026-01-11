@@ -76,13 +76,13 @@ PROMPT_MUTATIONS = {
     "NO_HUMILITY": """
     EDITOR REQUEST: You sound too perfect.
     Explicitly state the wrong assumption you made.
-    Use the phrase "I assumed..." or "I was certain..." and show why you were wrong.
+    Use phrases like "I assumed...", "It never occurred to me...", "I was convinced...".
     """,
 
     # --- DETERMINISTIC REGEX ISSUES ---
     "MISSING_CONFESSION_KEYWORD": """
     CRITICAL STRUCTURE FAILURE: You missed the mandatory confession phrase.
-    You MUST include one of these exact phrases: "I assumed", "I thought", "I was certain", "I expected".
+    You MUST include a phrase like: "I assumed", "I thought", "It never occurred to me", "I was convinced".
     """,
     "MORAL_STRUCTURE_FAIL": """
     CRITICAL STRUCTURE FAILURE: The moral section is malformed.
@@ -91,7 +91,7 @@ PROMPT_MUTATIONS = {
 }
 
 # =============================
-# NARRATIVE SPINES
+# NARRATIVE SPINES (Emotional Arcs)
 # =============================
 NARRATIVE_SPINES = {
     "CLASSIC_FAILURE": {
@@ -174,11 +174,17 @@ def safe_print(text):
 
 def load_json(path):
     if not os.path.exists(path):
-        return {"act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": []}
+        return {
+            "act_index": 0, "episode": 1,
+            "previous_lessons": [], "last_themes": [], "last_tech": [], "last_spines": []
+        }
     try:
         with open(path, "r", encoding="utf-8") as f: return json.load(f)
     except Exception:
-        return {"act_index": 0, "episode": 1, "previous_lessons": [], "last_themes": [], "last_tech": []}
+        return {
+            "act_index": 0, "episode": 1,
+            "previous_lessons": [], "last_themes": [], "last_tech": [], "last_spines": []
+        }
 
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
@@ -210,7 +216,6 @@ def log_failure(post, axis, note):
         "note": note,
         "post_snippet": post[:200]
     })
-    # Keep only last 50 failures
     save_json(FAILED_DRAFTS_FILE, failures[-50:])
 
 # 🔧 API RETRY HANDLER WITH TEMPERATURE CONTROL
@@ -243,23 +248,21 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 # 🔧 1. DETERMINISTIC PRE-FLIGHT CHECK
 def structural_precheck(post):
     """
-    Cheap, fast regex checks to catch failures before asking the LLM Judge.
-    Returns: (Passed: bool, FailureAxis: str|None)
+    Regex checks to catch failures before asking the LLM Judge.
+    Expanded regex to capture natural human phrasing.
     """
-    # 1. Confession Check
-    # Looks for "I assumed", "I thought", "I expected", "I was certain"
-    if not re.search(r"\bI (assumed|thought|was certain|expected|guessed)\b", post, re.IGNORECASE):
+    # Expanded confession regex
+    confession_pattern = r"\b(I (assumed|thought|was certain|expected|guessed)|It never occurred to me|I was convinced)\b"
+
+    if not re.search(confession_pattern, post, re.IGNORECASE):
         return False, "MISSING_CONFESSION_KEYWORD"
 
-    # 2. Moral Structure Check
     if "The Moral 👇" not in post:
         return False, "MORAL_STRUCTURE_FAIL"
 
     # Check if moral is too long (more than 1 sentence/period)
     moral_part = post.split("The Moral 👇")[-1].strip()
     if moral_part.count(".") > 1:
-        # It's okay if it ends with a period, but if there's a period in the middle, it's 2 sentences.
-        # A simple check: split by dot, remove empty strings. If > 1, it's likely too long.
         segments = [s for s in moral_part.split(".") if len(s.strip()) > 2]
         if len(segments) > 1:
             return False, "MORAL_STRUCTURE_FAIL"
@@ -308,12 +311,18 @@ def enforce_single_moral(text):
     parts = text.split("The Moral 👇")
     body = parts[0]
     moral_section = parts[1].strip()
+
+    # Find first sentence ending, but be permissible if no punctuation exists (stylistic choice)
     first_sentence_match = re.match(r'(.*?[.!?])', moral_section, re.DOTALL)
+
     if first_sentence_match:
         clean_moral = first_sentence_match.group(1).strip()
         return f"{body.strip()}\n\nThe Moral 👇\n\n{clean_moral}"
     else:
-        return text
+        # If no punctuation, take the first line/paragraph as the moral
+        # This preserves stylistic choices like "And that is why we monitor." (no period)
+        clean_moral = moral_section.split('\n')[0].strip()
+        return f"{body.strip()}\n\nThe Moral 👇\n\n{clean_moral}"
 
 # =============================
 # LOGIC
@@ -329,10 +338,17 @@ def select_theme_and_tech(state):
     final_tech_pool = [t for t in tech_pool if t not in last_tech[-2:]] or tech_pool
     return theme, random.choice(final_tech_pool)
 
-def select_spine():
-    spines = list(NARRATIVE_SPINES.keys())
-    weights = [NARRATIVE_SPINES[k]["weight"] for k in spines]
-    selected_key = random.choices(spines, weights=weights, k=1)[0]
+def select_spine(state):
+    # Narrative Freshness Guard
+    last_spines = state.get("last_spines", [])
+
+    # Filter available spines to avoid recent repetitions
+    available_spines = [k for k in NARRATIVE_SPINES.keys() if k not in last_spines[-2:]]
+    if not available_spines:
+        available_spines = list(NARRATIVE_SPINES.keys())
+
+    weights = [NARRATIVE_SPINES[k]["weight"] for k in available_spines]
+    selected_key = random.choices(available_spines, weights=weights, k=1)[0]
     return selected_key, NARRATIVE_SPINES[selected_key]["instructions"]
 
 def get_arc_payoff(act_index):
@@ -458,6 +474,9 @@ FAIL if:
 4. Tone is explanatory/teaching.
 5. Moral feels like documentation.
 
+IMPORTANT: Prefer narrowly scoped, incident-specific realizations over generalized system truths.
+Senior writing captures the incident. Staff+ writing generalizes too much. Stay Senior.
+
 OUTPUT JSON ONLY:
 {
   "verdict": "PASS_9_PLUS" OR "FAIL",
@@ -469,7 +488,6 @@ OUTPUT JSON ONLY:
 def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, act_index, echo_instruction):
     payoff_instruction = get_arc_payoff(act_index)
 
-    # [[EDITOR_FEEDBACK_SLOT]] - Placeholder for mutation injection
     return f"""
 Role:
 You are a Senior Backend Engineer reflecting on a real production experience.
@@ -491,7 +509,7 @@ MANDATORY NARRATIVE SPINE:
 [[EDITOR_FEEDBACK_SLOT]]
 
 CONFESSION RULE:
-State your wrong assumption naturally (e.g., "I thought...", "I assumed...").
+State your wrong assumption naturally (e.g., "I thought...", "I assumed...", "It never occurred to me...").
 
 STYLE RULES:
 - No paragraph > 2 lines
@@ -523,21 +541,20 @@ Length: 150–200 words
 # =============================
 def generate_with_review(client, base_prompt, forbidden_phrases):
     last_content = None
-    feedback_text = "" # Starts empty
+    feedback_text = ""
+    previous_axis = None
 
-    # 3-4 attempts, convergent temperature
     MAX_ATTEMPTS = 4
 
     for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        # 1. Temperature Control (Explore -> Converge)
+        # 1. Convergent Temperature
         temp = 0.7 if attempt == 0 else 0.4
 
-        # 2. Slot Replacement (Clean Prompting)
         current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
 
-        # 3. Generate
+        # 2. Generate
         response = generate_safe(client, current_prompt, temperature=temp)
         try:
             content = json.loads(response.text)
@@ -549,17 +566,16 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
         content["post_text"] = post
         last_content = content
 
-        # 4. PRE-FLIGHT DETERMINISTIC CHECK (Cheap & Fast)
+        # 3. DETERMINISTIC PRE-FLIGHT CHECK
         passed_structure, failure_axis = structural_precheck(post)
         if not passed_structure:
             safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
-
             if attempt < MAX_ATTEMPTS - 1:
                 mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
                 feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
-                continue # Skip LLM Judge, go straight to retry
+                continue
 
-        # 5. LLM Judge
+                # 4. LLM Judge
         judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
         try:
             raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
@@ -573,20 +589,23 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
         if verdict_data.get("verdict") == "PASS_9_PLUS":
             return content
 
-        # 6. Prepare Feedback for Next Loop
+        # 5. Anti-Thrash Logic (Stop if axis repeats)
         axis = verdict_data.get("failure_axis", "NO_HUMILITY")
+        if axis == previous_axis:
+            safe_print("⚠️ Same failure axis repeated. Stopping mutation to preserve authenticity.")
+            return content
+
+        previous_axis = axis
+
+        # 6. Mutate
         mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
         safe_print(f"💉 Injecting Mutation: {axis}")
-
-        # Overwrite slot for next run
         feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
 
-    # 7. Final Failure Logic
     safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
 
-    # Log the failure for data analysis
     if last_content:
-        log_failure(last_content["post_text"], axis, verdict_data.get("editor_note", "Max attempts reached"))
+        log_failure(last_content["post_text"], previous_axis, verdict_data.get("editor_note", "Max attempts"))
         return last_content
 
     safe_print("❌ Critical Failure: No content generated.")
@@ -602,7 +621,10 @@ def run_draft_mode():
     act = ACTS[state["act_index"]]
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
-    spine_name, spine_steps = select_spine()
+
+    # Narrative Freshness (Emotional Arc Check)
+    spine_name, spine_steps = select_spine(state)
+
     echo_instr = maybe_add_deferred_echo(state)
 
     print("\n" + "="*40)
@@ -656,8 +678,12 @@ def run_publish_mode():
     state["previous_lessons"].append(draft["lesson_extracted"])
     state.setdefault("last_themes", []).append(draft["meta_theme"])
     state.setdefault("last_tech", []).append(draft["meta_tech"])
+    state.setdefault("last_spines", []).append(draft["meta_spine"]) # Track Emotional Arc
+
     state["last_themes"] = state["last_themes"][-5:]
     state["last_tech"] = state["last_tech"][-5:]
+    state["last_spines"] = state["last_spines"][-2:] # Don't repeat emotional arc immediately
+
     state["episode"] += 1
     if state["episode"] > ACTS[state["act_index"]]["max_episodes"]:
         state["episode"] = 1
