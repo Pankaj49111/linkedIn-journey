@@ -3,54 +3,203 @@ import json
 import argparse
 import requests
 from google import genai
+from google.genai import types
 import sys
 import random
 import re
 import time
+from datetime import datetime
 
+# =============================
+# FORCE UTF-8 OUTPUT
+# =============================
 sys.stdout.reconfigure(encoding="utf-8")
 
+# =============================
+# CONFIGURATION
+# =============================
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 LINKEDIN_TOKEN = os.getenv("LINKEDIN_ACCESS_TOKEN")
 
 HISTORY_FILE = "interview_history.json"
 STATE_FILE = "interview_state.json"
+FAILED_DRAFTS_FILE = "interview_failed_drafts.json"
 
 LINKEDIN_API_VERSION = "202411"
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #interviews #java #systemsdesign #jvm"
 
+# =============================
+# 🧠 MUTATION ENGINE
+# =============================
+PROMPT_MUTATIONS = {
+    "QA_STYLE_DETECTED": """
+    EDITOR REQUEST: You are writing like a Q&A exam. Stop.
+    Remove all "Question:" or "Answer:" labels.
+    Describe the *pattern* of the answer ("Most candidates mention X..."), not the quote itself.
+    """,
+    "TOO_PREACHY": """
+    EDITOR REQUEST: You sound like a tutorial ("You should always...").
+    Switch to EVALUATOR tone ("This tells me...", "This signals...").
+    Don't teach the concept; judge the reasoning.
+    """,
+    "MISSING_TENSION": """
+    EDITOR REQUEST: The post is too flat. It lacks narrative tension.
+    You must describe what you were WAITING to hear, but didn't.
+    "I waited for them to mention X, but they stopped at Y."
+    """,
+    "MISSING_MIRROR": """
+    EDITOR REQUEST: You missed the 'Mirror Line'.
+    Add a sentence that implicates the reader/candidate, like:
+    "It's an answer I've heard myself give." or "Most strong resumes stop right here."
+    """,
+    "EXPLICIT_TEACHING": """
+    EDITOR REQUEST: You are explaining the technology. Stop.
+    Assume the reader knows what the tech is.
+    Focus entirely on what the candidate's answer REVEALS about their seniority.
+    """,
+    "PRODUCT_NAMING_DETECTED": """
+    EDITOR REQUEST: Do NOT name specific products (WhatsApp, Uber, Netflix).
+    Describe the BEHAVIOR instead:
+    - Instead of "WhatsApp", say "Long-lived connection systems".
+    - Instead of "Twitter", say "High fan-out models".
+    """,
+    "DESIGN_TUTORIAL_TONE": """
+    EDITOR REQUEST: You are explaining 'How to design X'. Stop.
+    Focus on 'Where the design breaks'.
+    Identify the specific pressure point (e.g., reconnect storms) where the candidate's model collapses.
+    """
+}
+
+# =============================
+# 🗄️ IMPLICIT AXIS DATABASE
+# =============================
 INTERVIEW_TOPICS = {
     "relational_db": [
-        "Isolation levels breaking financial correctness",
-        "Connection pools masking slow queries",
-        "Indexes accelerating reads while killing writes",
-        "Long transactions holding invisible locks"
+        {
+            "topic": "Isolation levels breaking financial correctness",
+            "axis": "State Ownership Axis",
+            "signal": "Do they understand where truth lives vs where it is read?",
+            "anchor": "The numbers were internally consistent. They were still wrong."
+        },
+        {
+            "topic": "Connection pools masking slow queries",
+            "axis": "Resource Contention Axis",
+            "signal": "Do they recognize indirect bottlenecks beyond CPU?",
+            "anchor": "The database wasn't slow. Requests were just waiting."
+        },
+        {
+            "topic": "Indexes accelerating reads while killing writes",
+            "axis": "Recovery Cost Axis",
+            "signal": "Trade-off awareness and rollback thinking.",
+            "anchor": "The improvement worked. Rolling it back didn't."
+        },
+        {
+            "topic": "Long transactions holding invisible locks",
+            "axis": "Resource Contention Axis",
+            "signal": "Debugging without alerts; lock visibility intuition.",
+            "anchor": "Nothing was failing. Everything was blocked."
+        }
     ],
     "nosql_misuse": [
-        "Eventual consistency leaking into user workflows",
-        "Hot partitions created by innocent keys",
-        "Compaction pauses mistaken for traffic spikes"
+        {
+            "topic": "Eventual consistency leaking into user workflows",
+            "axis": "State Ownership Axis",
+            "signal": "Modeling inconsistency impact on users.",
+            "anchor": "The system behaved correctly. Users didn't experience it that way."
+        },
+        {
+            "topic": "Hot partitions created by innocent keys",
+            "axis": "Backpressure Axis",
+            "signal": "Load distribution intuition and non-linear scaling.",
+            "anchor": "Most requests were fast. A few were unbearably slow."
+        },
+        {
+            "topic": "Compaction pauses mistaken for traffic spikes",
+            "axis": "Visibility vs Reality Axis",
+            "signal": "Metric skepticism and false correlation detection.",
+            "anchor": "Traffic never increased. Latency did."
+        }
     ],
     "derived_stores": [
-        "Dual writes without atomicity",
-        "Search indexes lagging behind truth",
-        "Backfills causing production brownouts"
+        {
+            "topic": "Dual writes without atomicity",
+            "axis": "State Ownership Axis",
+            "signal": "Repair complexity awareness.",
+            "anchor": "We couldn't tell which side was wrong anymore."
+        },
+        {
+            "topic": "Search indexes lagging behind truth",
+            "axis": "Visibility vs Reality Axis",
+            "signal": "Asynchronous correctness and user trust impact.",
+            "anchor": "The data was correct. The answers weren't."
+        },
+        {
+            "topic": "Backfills causing production brownouts",
+            "axis": "Backpressure Axis",
+            "signal": "Operational empathy and safe repair strategies.",
+            "anchor": "Fixing old data broke new traffic."
+        }
     ],
     "kafka": [
-        "Ordering guarantees vs Consumer Group rebalances",
-        "The myth of 'Exactly Once' in distributed systems",
-        "Consumer lag: Latency vs Throughput trade-off"
+        {
+            "topic": "Ordering guarantees vs Consumer Group rebalances",
+            "axis": "Ordering Guarantees Axis",
+            "signal": "Replay awareness and non-linear time reasoning.",
+            "anchor": "The event arrived again. This time it mattered."
+        },
+        {
+            "topic": "The myth of 'Exactly Once' in distributed systems",
+            "axis": "Human Assumption Axis",
+            "signal": "Overconfidence detection; pragmatism vs theory.",
+            "anchor": "The guarantee existed. The assumptions didn't."
+        },
+        {
+            "topic": "Consumer lag: Latency vs Throughput trade-off",
+            "axis": "Backpressure Axis",
+            "signal": "Queueing intuition and trade-off reasoning.",
+            "anchor": "Nothing timed out. Everything was late."
+        }
     ],
     "redis": [
-        "Using Redis as a primary database (The Persistence Trap)",
-        "Distributed locks: The Clock Skew problem",
-        "Eviction policies silently killing business logic"
+        {
+            "topic": "Using Redis as a primary database (The Persistence Trap)",
+            "axis": "State Ownership Axis",
+            "signal": "Durability thinking and long-term risk awareness.",
+            "anchor": "It was fast until it wasn't there anymore."
+        },
+        {
+            "topic": "Distributed locks: The Clock Skew problem",
+            "axis": "Ordering Guarantees Axis",
+            "signal": "Time skepticism and failure mode imagination.",
+            "anchor": "The lock expired. The work didn't."
+        },
+        {
+            "topic": "Eviction policies silently killing business logic",
+            "axis": "Failure Detection Axis",
+            "signal": "Silent failure awareness and cache skepticism.",
+            "anchor": "The system forgot something important."
+        }
     ],
     "jvm_mechanics": [
-        "Thread Pool Exhaustion vs CPU saturation",
-        "Stop-the-world GC pauses vs Network Latency",
-        "JVM Warm-up: Why autoscaling is slow"
+        {
+            "topic": "Thread Pool Exhaustion vs CPU saturation",
+            "axis": "Resource Contention Axis",
+            "signal": "Queue vs compute distinction.",
+            "anchor": "CPU was idle. Requests weren't moving."
+        },
+        {
+            "topic": "Stop-the-world GC pauses vs Network Latency",
+            "axis": "Visibility vs Reality Axis",
+            "signal": "Root cause patience and JVM internals intuition.",
+            "anchor": "Everything froze. The network took the blame."
+        },
+        {
+            "topic": "JVM Warm-up: Why autoscaling is slow",
+            "axis": "Initialization & Warm-up Axis",
+            "signal": "Lifecycle thinking; cold vs steady-state reasoning.",
+            "anchor": "Scaling worked. Starting didn't."
+        }
     ]
 }
 
@@ -78,6 +227,9 @@ SERIES_MARKERS = [
     "I tend to pause when this answer sounds complete..."
 ]
 
+# =============================
+# HELPERS
+# =============================
 def safe_print(text):
     try:
         print(text.encode("utf-8", "replace").decode("utf-8"))
@@ -97,37 +249,82 @@ def save_json(path, data):
 def clean_text(text):
     if not text: return ""
     text = text.replace("*", "")
-
-    # JVM Firewall
+    text = text.replace("```json", "").replace("```", "")
     for term in FORBIDDEN_TECH_TERMS:
         if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
-            raise ValueError(f"Forbidden non-JVM term detected: {term}")
-
+            safe_print(f"⚠️ Warning: Forbidden term '{term}' detected.")
     text = re.sub(r'(?i)^(Hook|Lesson|Insight|Signal|Trap|Reality|Common Answer|Where it breaks|Where it holds|Context|Observation):', '', text, flags=re.MULTILINE)
-
     return text.strip()
 
+def log_failure(post, axis, note, topic, subtopic):
+    if not os.path.exists(FAILED_DRAFTS_FILE):
+        failures = []
+    else:
+        try:
+            with open(FAILED_DRAFTS_FILE, "r", encoding="utf-8") as f: failures = json.load(f)
+        except: failures = []
+
+    failures.append({
+        "date": datetime.now().isoformat(),
+        "topic_context": f"{topic} -> {subtopic}",
+        "axis": axis,
+        "note": note,
+        "post_snippet": post[:200]
+    })
+    save_json(FAILED_DRAFTS_FILE, failures[-50:])
+
+# 🔧 API RETRY HANDLER
+def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
+    max_retries = 3
+    base_delay = 5
+    config = types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature)
+    for i in range(max_retries):
+        try:
+            return client.models.generate_content(model=model, contents=prompt, config=config)
+        except Exception as e:
+            error_msg = str(e).lower()
+            if "503" in error_msg or "overloaded" in error_msg or "unavailable" in error_msg:
+                wait_time = base_delay * (2 ** i)
+                safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... (Attempt {i+1}/{max_retries})")
+                time.sleep(wait_time)
+            else: raise e
+    raise Exception("❌ API failed after max retries.")
+
+# 🔧 PRE-FLIGHT CHECK
+def structural_precheck(post):
+    if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
+        return False, "QA_STYLE_DETECTED"
+    if re.search(r"\b(You should|Always|Never|Ensure that)\b", post, re.IGNORECASE):
+        return False, "TOO_PREACHY"
+    if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
+        return False, "PRODUCT_NAMING_DETECTED"
+    return True, None
+
+# 🔧 FORMATTING ENGINE (AGGRESSIVE MOBILE READABILITY)
 def format_for_linkedin(text):
-    """
-    Forcefully inserts double newlines to prevent 'Wall of Text'.
-    1. Standardizes existing newlines.
-    2. If a paragraph is too long (>250 chars), it splits it.
-    """
-    # 1. Normalize line endings
     text = text.replace('\r\n', '\n').strip()
 
-    # 2. Split by any existing paragraphs
-    paragraphs = re.split(r'\n+', text)
+    # 1. VISUAL HOOK: Isolate the first sentence if it's reasonably short
+    match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
+    if match:
+        hook = match.group(1).strip()
+        rest = match.group(3).strip()
+        if len(hook) < 150:
+            text = f"{hook}\n\n{rest}"
 
+    # 2. AGGRESSIVE CHUNKING
+    raw_paragraphs = re.split(r'\n+', text)
     final_paragraphs = []
-    for p in paragraphs:
+
+    for p in raw_paragraphs:
         p = p.strip()
         if not p: continue
+        if p == final_paragraphs[0] if final_paragraphs else False:
+            final_paragraphs.append(p)
+            continue
 
-        if len(p) > 280:
-            # Split by period, but keep the period
+        if len(p) > 200 or p.count(".") > 2:
             sentences = re.split(r'(?<=[.!?]) +', p)
-            # Group every 2 sentences into a new paragraph
             chunk = ""
             count = 0
             for s in sentences:
@@ -137,45 +334,35 @@ def format_for_linkedin(text):
                     final_paragraphs.append(chunk.strip())
                     chunk = ""
                     count = 0
-            if chunk:
-                final_paragraphs.append(chunk.strip())
+            if chunk: final_paragraphs.append(chunk.strip())
         else:
             final_paragraphs.append(p)
 
     return "\n\n".join(final_paragraphs)
 
-def check_length_constraint(text):
-    sentences = re.split(r'[.!?]+', text)
-    sentences = [s for s in sentences if len(s.strip()) > 3]
-    if len(sentences) > 9: return False, len(sentences)
-    return True, len(sentences)
-
-def parse_json_safely(raw_text):
-    cleaned = re.sub(r"```json|```", "", raw_text).strip()
-    try:
-        return json.loads(cleaned, strict=False)
-    except json.JSONDecodeError:
-        try:
-            cleaned_lines = cleaned.replace('\n', '\\n')
-            return json.loads(cleaned_lines, strict=False)
-        except:
-            return {"post_text": raw_text}
-
+# =============================
+# LOGIC
+# =============================
 def select_topic(state):
     last_topics = state.get("last_topics", [])
-    last_categories = state.get("last_categories", [])
+    last_axes = state.get("last_axes", [])
+
     categories = list(INTERVIEW_TOPICS.keys())
+    category = random.choice(categories)
 
-    available_categories = [c for c in categories if c not in last_categories]
-    if not available_categories: available_categories = categories
-    category = random.choice(available_categories)
+    subtopic_objects = INTERVIEW_TOPICS[category]
+    valid_candidates = []
+    for obj in subtopic_objects:
+        is_fresh_topic = obj["topic"] not in last_topics
+        is_fresh_axis = obj["axis"] not in last_axes[-2:]
+        if is_fresh_topic and is_fresh_axis:
+            valid_candidates.append(obj)
 
-    subtopics = INTERVIEW_TOPICS[category]
-    available_subtopics = [t for t in subtopics if t not in last_topics]
-    if not available_subtopics: available_subtopics = subtopics
-    subtopic = random.choice(available_subtopics)
+    if not valid_candidates:
+        valid_candidates = subtopic_objects
 
-    return category, subtopic
+    selected_obj = random.choice(valid_candidates)
+    return category, selected_obj
 
 def get_user_urn():
     try:
@@ -187,14 +374,9 @@ def get_user_urn():
     except Exception: return None
 
 def post_to_linkedin(urn, text):
+    text = format_for_linkedin(text)
     url = "https://api.linkedin.com/rest/posts"
-    headers = {
-        "Authorization": f"Bearer {LINKEDIN_TOKEN}",
-        "Content-Type": "application/json",
-        "X-Restli-Protocol-Version": "2.0.0",
-        "LinkedIn-Version": LINKEDIN_API_VERSION
-    }
-
+    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0", "LinkedIn-Version": LINKEDIN_API_VERSION}
     full_text = text.strip() + FIXED_HASHTAGS
     payload = {
         "author": f"urn:li:person:{urn}",
@@ -204,38 +386,81 @@ def post_to_linkedin(urn, text):
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False
     }
-
     resp = requests.post(url, headers=headers, json=payload, timeout=30)
     return resp.status_code == 201
 
-def build_prompt(category, subtopic, lens, posture, use_series_marker, use_early_fail):
+# =============================
+# PROMPTS & JUDGE
+# =============================
+QUALITY_GATE_PROMPT = """
+Role: Principal Engineer / Hiring Bar Raiser.
+
+Review the post below.
+
+FAIL if:
+1. It feels like "Content Creation" (Tips, Tricks, Tutorials).
+2. It uses Q&A labels ("Question:", "Answer:").
+3. It gives advice ("You should...").
+4. It names specific products (WhatsApp, Uber, etc.).
+5. It lacks NARRATIVE TENSION (doesn't describe what was *missing* or *unsaid*).
+
+PASS_9_PLUS only if:
+- It describes SYSTEM PRESSURE (long-lived connections, fan-out, churn).
+- It creates a moment of silence/judgment where a follow-up question was WITHHELD.
+
+OUTPUT JSON ONLY:
+{
+  "verdict": "PASS_9_PLUS" OR "FAIL",
+  "failure_axis": "QA_STYLE_DETECTED" | "TOO_PREACHY" | "MISSING_TENSION" | "MISSING_MIRROR" | "PRODUCT_NAMING_DETECTED" | "DESIGN_TUTORIAL_TONE",
+  "editor_note": "Reason"
+}
+"""
+
+def build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail):
     opening_instr = f"Start with: {posture}"
     if use_series_marker:
         marker = random.choice(SERIES_MARKERS)
         opening_instr = f"Start EXPLICITLY with this phrase: '{marker}'"
 
-    if use_early_fail:
-        structure_instr = "1. THE OBSERVATION\n2. THE EARLY CRACK (Fail immediately)\n3. THE CONSEQUENCE"
-    else:
-        structure_instr = "1. THE OBSERVATION\n2. THE CONTEXT\n3. THE GAP"
+    subtopic = topic_obj["topic"]
+    axis = topic_obj["axis"]
+    signal = topic_obj["signal"]
+    anchor = topic_obj["anchor"]
 
     return f"""
 Role:
-Senior Backend Engineer Peer.
+Principal Backend Evaluator.
 
 CONTEXT:
-- Topic: {category}
-- Pattern: {subtopic}
+- Topic: {subtopic}
+- Hidden Axis: {axis}
+- Interview Signal: {signal}
 - Lens: {lens}
 - Opening: {opening_instr}
 
 CONSTRAINTS:
 1. JVM ONLY. No Node/Go/Rust.
 2. NO EMOJIS.
-3. Max 1 proper noun (e.g. "Hibernate").
+3. NO "You should" / "Always" / "Never". (Anti-Advice Rule)
+4. NO "Question:" or "Answer:" labels. (Anti-Q&A Rule)
+5. DO NOT name products (WhatsApp, Uber). Describe behavior.
+6. MANDATORY: First sentence must be short (under 15 words) and arresting.
+
+PSYCHOLOGICAL RULES (MANDATORY):
+1. THE UNASKED QUESTION: Describe waiting for the candidate to mention something critical—and they don't.
+2. DELIBERATE SILENCE: Include a moment where you *choose not to ask* the follow-up because the signal is clear.
+3. THE MIRROR LINE: Include a sentence that implicates the reader (e.g., "Most strong resumes stop here" or "It sounds correct until you've lived it").
 
 TASK:
-Write a short, narrative observation ({structure_instr}).
+Write a first-person observation of a candidate's answer pattern.
+1. Describe the pattern indirectly.
+2. Describe your visceral internal reaction.
+3. Use the 'Hidden Axis' to focus on pressure points.
+
+NARRATIVE ANCHOR (Must appear in spirit):
+"{anchor}"
+
+[[EDITOR_FEEDBACK_SLOT]]
 
 REVEAL SENTENCE:
 Final sentence must follow: "This is usually where the discussion stops being about [Concept] and starts revealing how someone reasons about [System Risk]."
@@ -243,7 +468,6 @@ Final sentence must follow: "This is usually where the discussion stops being ab
 FORMATTING:
 - USE DOUBLE NEWLINES between paragraphs.
 - Keep paragraphs short (2-3 sentences max).
-- JSON Output with escaped newlines (\\n).
 
 OUTPUT JSON ONLY:
 {{
@@ -251,103 +475,104 @@ OUTPUT JSON ONLY:
 }}
 """
 
-def build_compress_prompt(original_text):
-    return f"""
-Role: Senior Editor.
-Task: Fix the formatting and density of this text.
+# =============================
+# MUTATION LOOP
+# =============================
+def generate_with_review(client, base_prompt, context_tuple):
+    category, subtopic = context_tuple
+    last_content = None
+    feedback_text = ""
+    previous_axis = None
 
-INPUT:
-"{original_text}"
+    MAX_ATTEMPTS = 4
 
-RULES:
-1. **CRITICAL: MAINTAIN PARAGRAPH BREAKS.** Do NOT merge into one block.
-2. Ensure there are exactly 3 distinct paragraphs separated by blank lines.
-3. Remove "teaching" fluff.
-4. Final sentence must be the "Reveal Sentence".
-5. NO EMOJIS.
-
-OUTPUT JSON ONLY:
-{{
-  "post_text": "..."
-}}
-"""
-
-QUALITY_GATE_PROMPT = """
-Role: Senior Engineer Peer.
-
-FAIL if:
-- Post is a single wall of text (no breaks).
-- Post uses emojis.
-- Tone is academic.
-- Length > 9 sentences.
-
-PASS if:
-- Structure is 3 clearly separated paragraphs.
-- Tone is observational.
-
-Respond exactly: PASS or FAIL
-"""
-
-def generate_with_review(client, prompt):
-    for attempt in range(2):
+    for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
+        temp = 0.7 if attempt == 0 else 0.4
 
-        # 1. GENERATE
-        response = client.models.generate_content(
-            model="gemini-flash-latest", contents=prompt,
-            config={"response_mime_type": "application/json"}
-        )
-        content = parse_json_safely(response.text)
-        draft1 = clean_text(content.get("post_text", ""))
+        current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
 
-        safe_print("🔨 Running Auto-Compressor...")
-        compress_resp = client.models.generate_content(
-            model="gemini-flash-latest", contents=build_compress_prompt(draft1),
-            config={"response_mime_type": "application/json"}
-        )
-        compressed_content = parse_json_safely(compress_resp.text)
-        post_text = clean_text(compressed_content.get("post_text", ""))
-
-        final_post = format_for_linkedin(post_text)
-
-        ok, count = check_length_constraint(final_post)
-        if not ok:
-            prompt += "\nERROR: Too long. Cut to max 8 sentences."
+        response = generate_safe(client, current_prompt, temperature=temp)
+        try:
+            content = json.loads(response.text)
+        except json.JSONDecodeError:
+            safe_print("⚠️ Invalid JSON. Retrying...")
             continue
 
-        verdict = client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{final_post}"
-        ).text.strip()
+        post = clean_text(content.get("post_text", ""))
+        content["post_text"] = post
+        last_content = content
 
-        safe_print(f"🕵️ Verdict: {verdict}")
+        # 3. DETERMINISTIC PRE-CHECK
+        passed_structure, failure_axis = structural_precheck(post)
+        if not passed_structure:
+            safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
+            if attempt < MAX_ATTEMPTS - 1:
+                mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
+                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
+                continue
 
-        if verdict == "PASS":
-            return final_post
+        # 4. LLM Judge
+        judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
+        try:
+            raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
+            verdict_data = json.loads(raw_judge)
+        except json.JSONDecodeError:
+            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL.")
+            verdict_data = {"verdict": "FAIL", "failure_axis": "TOO_PREACHY"}
 
-        prompt += "\nRewrite. Force double newlines between paragraphs."
+        safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
 
-    safe_print("❌ Failed quality gate.")
+        if verdict_data.get("verdict") == "PASS_9_PLUS":
+            return content
+
+        axis = verdict_data.get("failure_axis", "TOO_PREACHY")
+        if axis == previous_axis:
+            safe_print("⚠️ Same failure axis repeated. Stopping mutation.")
+            return content
+
+        previous_axis = axis
+        mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["TOO_PREACHY"])
+
+        safe_print(f"💉 Injecting Mutation: {axis}")
+        feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite applying this fix."
+
+    safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
+
+    if last_content:
+        log_failure(last_content["post_text"], previous_axis, verdict_data.get("editor_note", "Max attempts"), category, subtopic)
+        return last_content
+
+    safe_print("❌ Critical Failure: No content generated.")
     sys.exit(1)
 
+# =============================
+# MAIN AUTOMATION
+# =============================
 def run_automation(dry_run=False):
-    state = load_json(STATE_FILE, {"last_topics": [], "last_categories": []})
+    state = load_json(STATE_FILE, {"last_topics": [], "last_categories": [], "last_axes": []})
     client = genai.Client(api_key=GEMINI_KEY)
 
-    category, subtopic = select_topic(state)
+    category, topic_obj = select_topic(state)
+    subtopic = topic_obj["topic"]
+    axis = topic_obj["axis"]
+
     lens = random.choice(ANSWER_LENSES)
     posture = random.choice(OPENING_POSTURES)
-
     use_series_marker = (random.random() < 0.15)
     use_early_fail = (random.random() < 0.20)
 
     print("\n" + "="*50)
     print(f"📝 TOPIC:    {category.upper()}")
     print(f"🔍 PATTERN:  {subtopic}")
+    print(f"⚖️ AXIS:     {axis}")
     print("="*50 + "\n")
 
-    prompt = build_prompt(category, subtopic, lens, posture, use_series_marker, use_early_fail)
-    post_text = generate_with_review(client, prompt)
+    base_prompt = build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail)
+
+    final_content = generate_with_review(client, base_prompt, (category, subtopic))
+    post_text = final_content["post_text"]
+    post_text = format_for_linkedin(post_text)
 
     safe_print("✅ Content Generated:")
     safe_print(post_text)
@@ -367,10 +592,13 @@ def run_automation(dry_run=False):
     print("\n🚀 Publishing...")
     if post_to_linkedin(urn, post_text):
         safe_print("✅ Published.")
-        state["last_topics"].append(f"{category}:{subtopic}")
+
+        state["last_topics"].append(subtopic)
         state["last_topics"] = state["last_topics"][-15:]
         state["last_categories"].append(category)
         state["last_categories"] = state["last_categories"][-3:]
+        state["last_axes"].append(axis)
+        state["last_axes"] = state["last_axes"][-2:]
         save_json(STATE_FILE, state)
 
         history = load_json(HISTORY_FILE, [])
