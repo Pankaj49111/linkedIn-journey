@@ -91,13 +91,13 @@ jobs:
           git config --global user.email "bot@noreply.github.com"
           git pull
           
-          git add story_state.json || true
-          git add interview_state.json || true
-          git add interview_history.json || true
-          git add failed_drafts.json || true
-          git add interview_failed_drafts.json || true
+          [ -f "story_state.json" ] && git add -f story_state.json
+          [ -f "interview_state.json" ] && git add -f interview_state.json
+          [ -f "interview_history.json" ] && git add -f interview_history.json
+          [ -f "failed_drafts.json" ] && git add -f failed_drafts.json
+          [ -f "interview_failed_drafts.json" ] && git add -f interview_failed_drafts.json
           
-          git add -A current_draft.json || true
+          git add -A -f current_draft.json || true
           
           if [ -d "images/" ]; then
             git add images/
