@@ -1,7 +1,0 @@
-{
-  "post_text": "Sessions were fast.\n\nThen the threads froze.\n\nI was the lead architect for the new session service. We chose Redis, configuring a massive connection pool. I felt confident we had engineered away resource contention.\n\nBlack Friday traffic hit 4x peak projections. \ud83d\udcc8\n\nLatency immediately spiked to five seconds. The application servers weren't crashing, but they were completely unresponsive. Users saw 504 Gateway Timeouts. \ud83d\udc80\n\nThe Redis server CPU was idle. Memory was stable. The bottleneck wasn't the database; it was the application waiting for the database.\n\nI thought the pool size was the only constraint. It never occurred to me that the application threads were holding connections hostage for too long.\n\nWe were using synchronous blocking I/O for every session lookup. A slow operation, multiplied by thousands of concurrent requests, instantly starved the pool. Every worker thread waited on network I/O, not CPU. We lost 15 minutes of peak revenue. \u23f3\n\nThe immediate fix was switching the client library to non-blocking asynchronous calls.\n\nThe Moral \ud83d\udc47\n\nThe synchronous lease time of a pooled connection defines the ceiling of concurrent throughput.",
-  "lesson_extracted": "The synchronous lease time of a pooled connection defines the ceiling of concurrent throughput.",
-  "meta_theme": "THE CRASH \ud83d\udea8",
-  "meta_tech": "Redis",
-  "meta_spine": "CLASSIC_FAILURE"
-}
