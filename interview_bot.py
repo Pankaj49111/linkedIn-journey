@@ -25,8 +25,12 @@ HISTORY_FILE = "interview_history.json"
 STATE_FILE = "interview_state.json"
 FAILED_DRAFTS_FILE = "interview_failed_drafts.json"
 
-# 🛠️ UPDATED VERSION: Changed from '202411' to '202406' to fix 426 Error
-LINKEDIN_API_VERSION = "202406"
+# Prioritized list of API versions to try (Newest -> Oldest)
+LINKEDIN_VERSIONS_FALLBACK = [
+    "202511", "202510", "202509", "202508", "202507", "202506",
+    "202505", "202504", "202503", "202502", "202501",
+    "202412", "202411", "202410", "202409", "202408", "202407", "202406"
+]
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #interviews #java #systemsdesign #jvm"
 
@@ -69,6 +73,11 @@ PROMPT_MUTATIONS = {
     EDITOR REQUEST: You are explaining 'How to design X'. Stop.
     Focus on 'Where the design breaks'.
     Identify the specific pressure point (e.g., reconnect storms) where the candidate's model collapses.
+    """,
+    "FORBIDDEN_TERM": """
+    CRITICAL FAILURE: You used a forbidden term (Node, Python, Go, etc.).
+    This account is strictly JVM/Backend engineering.
+    Rewrite entirely using JVM terminology (Thread Pools, GC, Heap) or generic systems terms.
     """
 }
 
@@ -251,9 +260,13 @@ def clean_text(text):
     if not text: return ""
     text = text.replace("*", "")
     text = text.replace("```json", "").replace("```", "")
+
+    # 🚨 HARD BLOCK: Raise error if forbidden term is found
     for term in FORBIDDEN_TECH_TERMS:
         if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
-            safe_print(f"⚠️ Warning: Forbidden term '{term}' detected.")
+            # Exception triggers the mutation loop to retry
+            raise ValueError(f"Forbidden term detected: '{term}'")
+
     text = re.sub(r'(?i)^(Hook|Lesson|Insight|Signal|Trap|Reality|Common Answer|Where it breaks|Where it holds|Context|Observation):', '', text, flags=re.MULTILINE)
     return text.strip()
 
@@ -284,7 +297,6 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
         try:
             response = client.models.generate_content(model=model, contents=prompt, config=config)
 
-            # 🚨 SAFETY CHECK: If response.text is None, force a retry
             try:
                 if not response.text:
                     raise ValueError("Blocked by Safety Filter (Empty response)")
@@ -316,8 +328,10 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 def structural_precheck(post):
     if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
         return False, "QA_STYLE_DETECTED"
+
     if re.search(r"\b(You should|You must)\b", post, re.IGNORECASE):
         return False, "TOO_PREACHY"
+
     if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
         return False, "PRODUCT_NAMING_DETECTED"
     return True, None
@@ -325,8 +339,6 @@ def structural_precheck(post):
 # 🔧 FORMATTING ENGINE
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
-
-    # 1. VISUAL HOOK
     match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
     if match:
         hook = match.group(1).strip()
@@ -334,7 +346,6 @@ def format_for_linkedin(text):
         if len(hook) < 150:
             text = f"{hook}\n\n{rest}"
 
-    # 2. AGGRESSIVE CHUNKING
     raw_paragraphs = re.split(r'\n+', text)
     final_paragraphs = []
 
@@ -368,10 +379,8 @@ def format_for_linkedin(text):
 def select_topic(state):
     last_topics = state.get("last_topics", [])
     last_axes = state.get("last_axes", [])
-
     categories = list(INTERVIEW_TOPICS.keys())
     category = random.choice(categories)
-
     subtopic_objects = INTERVIEW_TOPICS[category]
     valid_candidates = []
     for obj in subtopic_objects:
@@ -379,10 +388,7 @@ def select_topic(state):
         is_fresh_axis = obj["axis"] not in last_axes[-2:]
         if is_fresh_topic and is_fresh_axis:
             valid_candidates.append(obj)
-
-    if not valid_candidates:
-        valid_candidates = subtopic_objects
-
+    if not valid_candidates: valid_candidates = subtopic_objects
     selected_obj = random.choice(valid_candidates)
     return category, selected_obj
 
@@ -395,11 +401,12 @@ def get_user_urn():
         return resp.json().get("sub")
     except Exception: return None
 
+# 🛠️ SELF-HEALING POST FUNCTION
 def post_to_linkedin(urn, text):
     text = format_for_linkedin(text)
     url = "https://api.linkedin.com/rest/posts"
-    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0", "LinkedIn-Version": LINKEDIN_API_VERSION}
     full_text = text.strip() + FIXED_HASHTAGS
+
     payload = {
         "author": f"urn:li:person:{urn}",
         "commentary": full_text,
@@ -409,15 +416,36 @@ def post_to_linkedin(urn, text):
         "isReshareDisabledByAuthor": False
     }
 
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
-        if resp.status_code != 201:
-            safe_print(f"❌ LinkedIn API Error [{resp.status_code}]: {resp.text}")
+    # Try versions from newest to oldest
+    for version in LINKEDIN_VERSIONS_FALLBACK:
+        headers = {
+            "Authorization": f"Bearer {LINKEDIN_TOKEN}",
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
+            "LinkedIn-Version": version
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code == 201:
+                safe_print(f"✅ Published successfully (Version: {version})")
+                return True
+
+            # If 426 (Version Not Supported), loop to next version
+            if resp.status_code == 426:
+                safe_print(f"⚠️ Version {version} not active. Retrying...")
+                continue
+
+            safe_print(f"❌ LinkedIn Error [{resp.status_code}]: {resp.text}")
             return False
-        return True
-    except Exception as e:
-        safe_print(f"❌ Network/Request Error: {e}")
-        return False
+
+        except Exception as e:
+            safe_print(f"❌ Network Error: {e}")
+            return False
+
+    safe_print("❌ All LinkedIn versions failed.")
+    return False
 
 # =============================
 # PROMPTS & JUDGE
@@ -519,53 +547,58 @@ def generate_with_review(client, base_prompt, context_tuple):
     for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
         temp = 0.7 if attempt == 0 else 0.4
-
         current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
 
-        response = generate_safe(client, current_prompt, temperature=temp)
         try:
+            response = generate_safe(client, current_prompt, temperature=temp)
             content = json.loads(response.text)
-        except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON. Retrying...")
-            continue
 
-        post = clean_text(content.get("post_text", ""))
-        content["post_text"] = post
-        last_content = content
+            # This will RAISE ValueError if forbidden term found
+            post = clean_text(content.get("post_text", ""))
 
-        # 3. DETERMINISTIC PRE-CHECK
-        passed_structure, failure_axis = structural_precheck(post)
-        if not passed_structure:
-            safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
-            if attempt < MAX_ATTEMPTS - 1:
-                mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
-                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
-                continue
+            content["post_text"] = post
+            last_content = content
 
-        # 4. LLM Judge
-        judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
-        try:
+            passed_structure, failure_axis = structural_precheck(post)
+            if not passed_structure:
+                safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
+                if attempt < MAX_ATTEMPTS - 1:
+                    mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
+                    feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
+                    continue
+
+            judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
             raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
             verdict_data = json.loads(raw_judge)
-        except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL.")
-            verdict_data = {"verdict": "FAIL", "failure_axis": "TOO_PREACHY"}
 
-        safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
+            safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
 
-        if verdict_data.get("verdict") == "PASS_9_PLUS":
-            return content
+            if verdict_data.get("verdict") == "PASS_9_PLUS":
+                return content
 
-        axis = verdict_data.get("failure_axis", "TOO_PREACHY")
-        if axis == previous_axis:
-            safe_print("⚠️ Same failure axis repeated. Stopping mutation.")
-            return content
+            axis = verdict_data.get("failure_axis", "TOO_PREACHY")
+            if axis == previous_axis:
+                safe_print("⚠️ Same failure axis repeated. Stopping mutation.")
+                return content
 
-        previous_axis = axis
-        mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["TOO_PREACHY"])
+            previous_axis = axis
+            mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["TOO_PREACHY"])
+            safe_print(f"💉 Injecting Mutation: {axis}")
+            feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite applying this fix."
 
-        safe_print(f"💉 Injecting Mutation: {axis}")
-        feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite applying this fix."
+        except ValueError as ve:
+            # Handle forbidden terms by treating them as a "mutation" failure
+            safe_print(f"🚫 {ve}")
+            if attempt < MAX_ATTEMPTS - 1:
+                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{PROMPT_MUTATIONS['FORBIDDEN_TERM']}"
+                continue
+            else:
+                # If last attempt failed due to forbidden term, we cannot publish it
+                safe_print("❌ Failed due to Forbidden Term on last attempt.")
+                sys.exit(1)
+        except Exception as e:
+            safe_print(f"⚠️ Unexpected Error: {e}")
+            continue
 
     safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
 
@@ -580,7 +613,6 @@ def generate_with_review(client, base_prompt, context_tuple):
 # MAIN AUTOMATION
 # =============================
 def run_automation(dry_run=False):
-    # BACKWARD COMPATIBILITY: Force 'last_axes' if missing
     state = load_json(STATE_FILE, {"last_topics": [], "last_categories": [], "last_axes": []})
     state.setdefault("last_axes", [])
     state.setdefault("last_topics", [])
@@ -626,8 +658,6 @@ def run_automation(dry_run=False):
 
     print("\n🚀 Publishing...")
     if post_to_linkedin(urn, post_text):
-        safe_print("✅ Published.")
-
         state["last_topics"].append(subtopic)
         state["last_topics"] = state["last_topics"][-15:]
         state["last_categories"].append(category)
