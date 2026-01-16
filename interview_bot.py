@@ -290,12 +290,15 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
             else: raise e
     raise Exception("❌ API failed after max retries.")
 
-# 🔧 PRE-FLIGHT CHECK
+# 🔧 PRE-FLIGHT CHECK (RELAXED)
 def structural_precheck(post):
     if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
         return False, "QA_STYLE_DETECTED"
-    if re.search(r"\b(You should|Always|Never|Ensure that)\b", post, re.IGNORECASE):
+
+    # 🚨 RELAXED RULE: Removed "Always" and "Never" which triggered false positives in storytelling
+    if re.search(r"\b(You should|You must|Make sure|Ensure that)\b", post, re.IGNORECASE):
         return False, "TOO_PREACHY"
+
     if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
         return False, "PRODUCT_NAMING_DETECTED"
     return True, None
@@ -304,7 +307,7 @@ def structural_precheck(post):
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
 
-    # 1. VISUAL HOOK: Isolate the first sentence if it's reasonably short
+    # 1. VISUAL HOOK
     match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
     if match:
         hook = match.group(1).strip()
@@ -386,8 +389,19 @@ def post_to_linkedin(urn, text):
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False
     }
-    resp = requests.post(url, headers=headers, json=payload, timeout=30)
-    return resp.status_code == 201
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+        # DEBUGGING: Print detailed error if it fails
+        if resp.status_code != 201:
+            safe_print(f"❌ LinkedIn API Error [{resp.status_code}]: {resp.text}")
+            return False
+
+        return True
+    except Exception as e:
+        safe_print(f"❌ Network/Request Error: {e}")
+        return False
 
 # =============================
 # PROMPTS & JUDGE
@@ -550,7 +564,12 @@ def generate_with_review(client, base_prompt, context_tuple):
 # MAIN AUTOMATION
 # =============================
 def run_automation(dry_run=False):
+    # BACKWARD COMPATIBILITY: Force 'last_axes' if missing
     state = load_json(STATE_FILE, {"last_topics": [], "last_categories": [], "last_axes": []})
+    state.setdefault("last_axes", [])
+    state.setdefault("last_topics", [])
+    state.setdefault("last_categories", [])
+
     client = genai.Client(api_key=GEMINI_KEY)
 
     category, topic_obj = select_topic(state)
