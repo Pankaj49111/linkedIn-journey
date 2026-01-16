@@ -25,7 +25,8 @@ HISTORY_FILE = "interview_history.json"
 STATE_FILE = "interview_state.json"
 FAILED_DRAFTS_FILE = "interview_failed_drafts.json"
 
-LINKEDIN_API_VERSION = "202411"
+# 🛠️ UPDATED VERSION: Changed from '202411' to '202406' to fix 426 Error
+LINKEDIN_API_VERSION = "202406"
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #interviews #java #systemsdesign #jvm"
 
@@ -273,7 +274,7 @@ def log_failure(post, axis, note, topic, subtopic):
     })
     save_json(FAILED_DRAFTS_FILE, failures[-50:])
 
-# 🔧 API RETRY HANDLER (FIXED FOR SAFETY FILTERS)
+# 🔧 API RETRY HANDLER
 def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
     max_retries = 3
     base_delay = 5
@@ -288,7 +289,6 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
                 if not response.text:
                     raise ValueError("Blocked by Safety Filter (Empty response)")
             except Exception:
-                # Catch access errors if .text doesn't exist on the object
                 raise ValueError("Blocked by Safety Filter (Invalid response object)")
 
             return response
@@ -299,7 +299,7 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 
             if "blocked" in error_msg or "safety" in error_msg:
                 safe_print(f"🛡️ Safety Filter Triggered. Retrying with higher temp... ({i+1}/{max_retries})")
-                temperature = min(1.0, temperature + 0.2) # Increase randomness to bypass filter
+                temperature = min(1.0, temperature + 0.2)
                 config = types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature)
 
             elif "503" in error_msg or "overloaded" in error_msg:
@@ -316,11 +316,8 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 def structural_precheck(post):
     if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
         return False, "QA_STYLE_DETECTED"
-
-    # RELAXED: Allowed narrative phrases like "Make sure" or "Ensure" if used in storytelling
     if re.search(r"\b(You should|You must)\b", post, re.IGNORECASE):
         return False, "TOO_PREACHY"
-
     if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
         return False, "PRODUCT_NAMING_DETECTED"
     return True, None
