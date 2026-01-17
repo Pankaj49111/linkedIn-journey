@@ -1,0 +1,7 @@
+{
+  "post_text": "OOMKills are silent killers.\n\nI learned the hard way. \ud83d\udc80\n\nWe migrated the core service to a new Kubernetes cluster. I set the memory limits tightly, based on profiling data. I assumed the Go runtime was just aggressive with GC, causing minor, safe restarts.\n\nThe dashboard was solid green. Latency was perfect. CPU utilization was flat. \ud83d\udfe2\n\nBut the Pod restart count was consistently high\u2014maybe 50 a day across the fleet. They were fast, silent OOMKills. No alerts fired; the system was self-healing.\n\nWeeks later, a customer success manager flagged inconsistent state in their reporting. We traced the anomaly back through the logs.\n\nThe OOMKills were happening precisely mid-transaction during large batch processing jobs. The kernel killed the process before the final database commit could execute.\n\nThis left orphaned records and partial state across the persistence layer. We lost 1.5% of critical transaction data over six weeks. Massive, invisible data debt. \ud83d\udcb8\n\nThe Moral \ud83d\udc47\n\n",
+  "lesson_extracted": "The Kubernetes scheduler treats an OOMKill as a self-healing event; the application treats it as an unhandled transaction failure.",
+  "meta_theme": "THE SILENT VICTORY \ud83c\udfc6",
+  "meta_tech": "Kubernetes OOMs",
+  "meta_spine": "SILENT_FAILURE"
+}
