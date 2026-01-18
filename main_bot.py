@@ -27,7 +27,12 @@ DRAFT_FILE = "current_draft.json"
 FAILED_DRAFTS_FILE = "failed_drafts.json"
 IMAGE_FOLDER = "images"
 
-LINKEDIN_API_VERSION = "202411"
+# Prioritized list of API versions to try (Newest -> Oldest)
+LINKEDIN_VERSIONS_FALLBACK = [
+    "202511", "202510", "202509", "202508", "202507", "202506",
+    "202505", "202504", "202503", "202502", "202501",
+    "202412", "202411", "202410", "202409", "202408", "202407", "202406", "202401"
+]
 
 # --- PERSONAL BRANDING ---
 MY_NAME = "Pankaj Kumar"
@@ -44,7 +49,6 @@ FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 # 🧠 MUTATION ENGINE
 # =============================
 PROMPT_MUTATIONS = {
-    # --- LLM DETECTED ISSUES ---
     "NO_CONFUSION": """
     EDITOR REQUEST: Inject a moment of genuine uncertainty before the realization.
     Show the narrator misreading metrics, checking the wrong logs, or feeling puzzled.
@@ -78,8 +82,6 @@ PROMPT_MUTATIONS = {
     Explicitly state the wrong assumption you made.
     Use phrases like "I assumed...", "It never occurred to me...", "I was convinced...".
     """,
-
-    # --- DETERMINISTIC REGEX ISSUES ---
     "MISSING_CONFESSION_KEYWORD": """
     CRITICAL STRUCTURE FAILURE: You missed the mandatory confession phrase.
     You MUST include a phrase like: "I assumed", "I thought", "It never occurred to me", "I was convinced".
@@ -91,7 +93,7 @@ PROMPT_MUTATIONS = {
 }
 
 # =============================
-# NARRATIVE SPINES (Emotional Arcs)
+# NARRATIVE SPINES
 # =============================
 NARRATIVE_SPINES = {
     "CLASSIC_FAILURE": {
@@ -218,7 +220,7 @@ def log_failure(post, axis, note):
     })
     save_json(FAILED_DRAFTS_FILE, failures[-50:])
 
-# 🔧 API RETRY HANDLER WITH TEMPERATURE CONTROL
+# 🔧 API RETRY HANDLER WITH SAFETY CHECK
 def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
     max_retries = 3
     base_delay = 5
@@ -230,28 +232,45 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 
     for i in range(max_retries):
         try:
-            return client.models.generate_content(
+            response = client.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=config
             )
+
+            # 🚨 SAFETY CHECK
+            try:
+                if not response.text:
+                    raise ValueError("Blocked by Safety Filter (Empty response)")
+            except Exception:
+                raise ValueError("Blocked by Safety Filter (Invalid response object)")
+
+            return response
+
         except Exception as e:
             error_msg = str(e).lower()
-            if "503" in error_msg or "overloaded" in error_msg or "unavailable" in error_msg:
-                wait_time = base_delay * (2 ** i)
-                safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... (Attempt {i+1}/{max_retries})")
-                time.sleep(wait_time)
+            wait_time = base_delay * (2 ** i)
+
+            if "blocked" in error_msg or "safety" in error_msg:
+                safe_print(f"🛡️ Safety Filter Triggered. Retrying with higher temp... ({i+1}/{max_retries})")
+                temperature = min(1.0, temperature + 0.2)
+                config = types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature)
+
+            elif "503" in error_msg or "overloaded" in error_msg:
+                safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... ({i+1}/{max_retries})")
+
             else:
-                raise e
+                safe_print(f"⚠️ API Error: {e}. Retrying...")
+
+            time.sleep(wait_time)
+
     raise Exception("❌ API failed after max retries.")
 
 # 🔧 1. DETERMINISTIC PRE-FLIGHT CHECK
 def structural_precheck(post):
     """
     Regex checks to catch failures before asking the LLM Judge.
-    Expanded regex to capture natural human phrasing.
     """
-    # Expanded confession regex
     confession_pattern = r"\b(I (assumed|thought|was certain|expected|guessed)|It never occurred to me|I was convinced)\b"
 
     if not re.search(confession_pattern, post, re.IGNORECASE):
@@ -260,7 +279,6 @@ def structural_precheck(post):
     if "The Moral 👇" not in post:
         return False, "MORAL_STRUCTURE_FAIL"
 
-    # Check if moral is too long (more than 1 sentence/period)
     moral_part = post.split("The Moral 👇")[-1].strip()
     if moral_part.count(".") > 1:
         segments = [s for s in moral_part.split(".") if len(s.strip()) > 2]
@@ -288,6 +306,13 @@ def format_for_linkedin(text):
     for p in raw_paragraphs:
         p = p.strip()
         if not p: continue
+
+        # Keep hook intact
+        if p == final_paragraphs[0] if final_paragraphs else False:
+            final_paragraphs.append(p)
+            continue
+
+        # Aggressive split for body
         if len(p) > 250:
             sentences = re.split(r'(?<=[.!?]) +', p)
             chunk = ""
@@ -312,15 +337,12 @@ def enforce_single_moral(text):
     body = parts[0]
     moral_section = parts[1].strip()
 
-    # Find first sentence ending, but be permissible if no punctuation exists (stylistic choice)
     first_sentence_match = re.match(r'(.*?[.!?])', moral_section, re.DOTALL)
 
     if first_sentence_match:
         clean_moral = first_sentence_match.group(1).strip()
         return f"{body.strip()}\n\nThe Moral 👇\n\n{clean_moral}"
     else:
-        # If no punctuation, take the first line/paragraph as the moral
-        # This preserves stylistic choices like "And that is why we monitor." (no period)
         clean_moral = moral_section.split('\n')[0].strip()
         return f"{body.strip()}\n\nThe Moral 👇\n\n{clean_moral}"
 
@@ -339,10 +361,7 @@ def select_theme_and_tech(state):
     return theme, random.choice(final_tech_pool)
 
 def select_spine(state):
-    # Narrative Freshness Guard
     last_spines = state.get("last_spines", [])
-
-    # Filter available spines to avoid recent repetitions
     available_spines = [k for k in NARRATIVE_SPINES.keys() if k not in last_spines[-2:]]
     if not available_spines:
         available_spines = list(NARRATIVE_SPINES.keys())
@@ -394,7 +413,8 @@ def get_image_from_folder():
 def upload_image_to_linkedin(urn, image_path):
     safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-    headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}', 'Content-Type': 'application/json', 'LinkedIn-Version': LINKEDIN_API_VERSION, 'X-Restli-Protocol-Version': '2.0.0'}
+    # Using 202401 as a safe default for image upload as well
+    headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}', 'Content-Type': 'application/json', 'LinkedIn-Version': '202401', 'X-Restli-Protocol-Version': '2.0.0'}
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
     try:
         resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
@@ -412,7 +432,7 @@ def poll_image_status(image_urn):
     if not image_urn: return False
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
-    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "LinkedIn-Version": LINKEDIN_API_VERSION, "X-Restli-Protocol-Version": "2.0.0"}
+    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "LinkedIn-Version": '202401', "X-Restli-Protocol-Version": "2.0.0"}
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
@@ -427,18 +447,20 @@ def poll_image_status(image_urn):
         except Exception: time.sleep(2)
     return False
 
+# 🛠️ SELF-HEALING POST FUNCTION
 def post_to_linkedin(urn, text, image_asset=None):
     text = format_for_linkedin(text)
     text = enforce_single_moral(text)
 
     url = "https://api.linkedin.com/rest/posts"
-    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0", "LinkedIn-Version": LINKEDIN_API_VERSION}
+
     full_text = text.strip() + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
     if len(full_text) > 2800:
         keep_length = len(FIXED_CTA) + len(FIXED_HASHTAGS) + 5
         available_space = 2797 - keep_length
         text = text[:available_space] + "..."
         full_text = text + "\n\n" + FIXED_CTA.strip() + FIXED_HASHTAGS
+
     payload = {
         "author": f"urn:li:person:{urn}",
         "commentary": full_text,
@@ -449,14 +471,36 @@ def post_to_linkedin(urn, text, image_asset=None):
     }
     if image_asset:
         payload["content"] = {"media": {"title": "Tech Insight", "id": image_asset}}
-    try:
-        resp = requests.post(url, headers=headers, json=payload, timeout=30)
-        if resp.status_code == 201: return True
-        safe_print(f"❌ LinkedIn Error: {resp.text}")
-        return False
-    except Exception as e:
-        safe_print(f"❌ Network Error: {e}")
-        return False
+
+    # Self-Healing Version Loop
+    for version in LINKEDIN_VERSIONS_FALLBACK:
+        headers = {
+            "Authorization": f"Bearer {LINKEDIN_TOKEN}",
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
+            "LinkedIn-Version": version
+        }
+
+        try:
+            resp = requests.post(url, headers=headers, json=payload, timeout=30)
+
+            if resp.status_code == 201:
+                safe_print(f"✅ Published successfully (Version: {version})")
+                return True
+
+            if resp.status_code == 426:
+                safe_print(f"⚠️ Version {version} inactive. Retrying...")
+                continue
+
+            safe_print(f"❌ LinkedIn Error [{resp.status_code}]: {resp.text}")
+            return False
+
+        except Exception as e:
+            safe_print(f"❌ Network Error: {e}")
+            return False
+
+    safe_print("❌ All LinkedIn versions failed.")
+    return False
 
 # =============================
 # JUDGE & PROMPT
@@ -549,24 +593,20 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
     for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
 
-        # 1. Convergent Temperature
         temp = 0.7 if attempt == 0 else 0.4
-
         current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
 
-        # 2. Generate
-        response = generate_safe(client, current_prompt, temperature=temp)
         try:
+            response = generate_safe(client, current_prompt, temperature=temp)
             content = json.loads(response.text)
-        except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON. Retrying...")
+        except (json.JSONDecodeError, ValueError, Exception) as e:
+            safe_print(f"⚠️ Generation Issue: {e}. Retrying...")
             continue
 
         post = clean_text(content["post_text"], forbidden_phrases)
         content["post_text"] = post
         last_content = content
 
-        # 3. DETERMINISTIC PRE-FLIGHT CHECK
         passed_structure, failure_axis = structural_precheck(post)
         if not passed_structure:
             safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
@@ -575,13 +615,12 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
                 feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
                 continue
 
-                # 4. LLM Judge
-        judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
         try:
+            judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
             raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
             verdict_data = json.loads(raw_judge)
-        except json.JSONDecodeError:
-            safe_print("⚠️ Invalid JSON from Judge. Assuming FAIL.")
+        except Exception:
+            safe_print("⚠️ Judge Failed. Assuming FAIL.")
             verdict_data = {"verdict": "FAIL", "failure_axis": "NO_HUMILITY"}
 
         safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
@@ -589,15 +628,12 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
         if verdict_data.get("verdict") == "PASS_9_PLUS":
             return content
 
-        # 5. Anti-Thrash Logic (Stop if axis repeats)
         axis = verdict_data.get("failure_axis", "NO_HUMILITY")
         if axis == previous_axis:
             safe_print("⚠️ Same failure axis repeated. Stopping mutation to preserve authenticity.")
             return content
 
         previous_axis = axis
-
-        # 6. Mutate
         mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
         safe_print(f"💉 Injecting Mutation: {axis}")
         feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
@@ -622,9 +658,7 @@ def run_draft_mode():
     theme, tech = select_theme_and_tech(state)
     prev = "\n".join(f"- {l}" for l in state["previous_lessons"][-5:])
 
-    # Narrative Freshness (Emotional Arc Check)
     spine_name, spine_steps = select_spine(state)
-
     echo_instr = maybe_add_deferred_echo(state)
 
     print("\n" + "="*40)
@@ -678,11 +712,11 @@ def run_publish_mode():
     state["previous_lessons"].append(draft["lesson_extracted"])
     state.setdefault("last_themes", []).append(draft["meta_theme"])
     state.setdefault("last_tech", []).append(draft["meta_tech"])
-    state.setdefault("last_spines", []).append(draft["meta_spine"]) # Track Emotional Arc
+    state.setdefault("last_spines", []).append(draft["meta_spine"])
 
     state["last_themes"] = state["last_themes"][-5:]
     state["last_tech"] = state["last_tech"][-5:]
-    state["last_spines"] = state["last_spines"][-2:] # Don't repeat emotional arc immediately
+    state["last_spines"] = state["last_spines"][-2:]
 
     state["episode"] += 1
     if state["episode"] > ACTS[state["act_index"]]["max_episodes"]:
