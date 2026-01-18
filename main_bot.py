@@ -46,7 +46,7 @@ FIXED_CTA = f"""
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
-# 🛡️ JVM FIREWALL (NEW)
+# 🛡️ JVM FIREWALL
 # =============================
 FORBIDDEN_TECH_TERMS = [
     "node", "nodejs", "event loop", "goroutine", "golang", " go ",
@@ -213,7 +213,6 @@ def clean_text(text, forbidden_phrases=None):
 
     # 🚨 JVM FIREWALL
     for term in FORBIDDEN_TECH_TERMS:
-        # Use regex boundary to avoid matching "go" inside "good"
         if re.search(rf"\b{re.escape(term.strip())}\b", text, re.IGNORECASE):
             raise ValueError(f"Forbidden term detected: '{term.strip()}'")
 
@@ -258,7 +257,6 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
                 config=config
             )
 
-            # 🚨 SAFETY CHECK
             try:
                 if not response.text:
                     raise ValueError("Blocked by Safety Filter (Empty response)")
@@ -288,9 +286,6 @@ def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
 
 # 🔧 1. DETERMINISTIC PRE-FLIGHT CHECK
 def structural_precheck(post):
-    """
-    Regex checks to catch failures before asking the LLM Judge.
-    """
     confession_pattern = r"\b(I (assumed|thought|was certain|expected|guessed)|It never occurred to me|I was convinced)\b"
 
     if not re.search(confession_pattern, post, re.IGNORECASE):
@@ -327,12 +322,10 @@ def format_for_linkedin(text):
         p = p.strip()
         if not p: continue
 
-        # Keep hook intact
         if p == final_paragraphs[0] if final_paragraphs else False:
             final_paragraphs.append(p)
             continue
 
-        # Aggressive split for body
         if len(p) > 250:
             sentences = re.split(r'(?<=[.!?]) +', p)
             chunk = ""
@@ -433,34 +426,72 @@ def get_image_from_folder():
 def upload_image_to_linkedin(urn, image_path):
     safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-    # Safe version
-    headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}', 'Content-Type': 'application/json', 'LinkedIn-Version': '202401', 'X-Restli-Protocol-Version': '2.0.0'}
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
-    try:
-        resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
-        data = resp.json().get('value') or resp.json()
-        upload_url = data.get('uploadUrl')
-        image_urn = data.get('image') or data.get('imageUrn')
-        with open(image_path, 'rb') as f:
-            requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
-        return image_urn
-    except Exception as e:
-        safe_print(f"❌ Upload Exception: {e}")
-        return None
+
+    # Self-Healing Version Loop for Image Upload
+    for version in LINKEDIN_VERSIONS_FALLBACK:
+        headers = {
+            'Authorization': f'Bearer {LINKEDIN_TOKEN}',
+            'Content-Type': 'application/json',
+            'LinkedIn-Version': version,
+            'X-Restli-Protocol-Version': '2.0.0'
+        }
+
+        try:
+            resp = requests.post(init_url, headers=headers, json=payload, timeout=30)
+
+            # If 426, retry next version
+            if resp.status_code == 426:
+                safe_print(f"⚠️ Image Upload: Version {version} inactive. Retrying...")
+                continue
+
+            # If unexpected error
+            if resp.status_code != 200:
+                safe_print(f"❌ Image Init Failed [{resp.status_code}]: {resp.text}")
+                continue
+
+            # Success
+            data = resp.json().get('value') or resp.json()
+            upload_url = data.get('uploadUrl')
+            image_urn = data.get('image') or data.get('imageUrn')
+
+            if not upload_url:
+                safe_print(f"❌ Upload URL missing in response.")
+                return None
+
+            # Perform Binary Upload
+            with open(image_path, 'rb') as f:
+                requests.put(upload_url, headers={"Authorization": f"Bearer {LINKEDIN_TOKEN}"}, data=f, timeout=60)
+
+            return image_urn
+
+        except Exception as e:
+            safe_print(f"❌ Image Upload Exception: {e}")
+            continue
+
+    safe_print("❌ All LinkedIn versions failed for image upload.")
+    return None
 
 def poll_image_status(image_urn):
     if not image_urn: return False
     encoded_urn = urllib.parse.quote(image_urn)
     url = f"https://api.linkedin.com/rest/images/{encoded_urn}"
-    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "LinkedIn-Version": '202401', "X-Restli-Protocol-Version": "2.0.0"}
+
+    headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "LinkedIn-Version": LINKEDIN_VERSIONS_FALLBACK[0], "X-Restli-Protocol-Version": "2.0.0"}
     deadline = time.time() + 60
     while time.time() < deadline:
         try:
             resp = requests.get(url, headers=headers, timeout=15)
+            # If 426 on polling, we might need to fallback too, but usually unnecessary for GET
+            if resp.status_code == 426:
+                headers["LinkedIn-Version"] = LINKEDIN_VERSIONS_FALLBACK[1] # Try one older
+                continue
+
             data = resp.json()
             status = None
             if "value" in data: status = data["value"].get("status") or data["value"].get("processingState")
             else: status = data.get("status") or data.get("processingState")
+
             if status == "AVAILABLE": return True
             if status in ["FAILED", "ERROR"]: return False
             time.sleep(2)
