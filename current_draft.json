@@ -1,0 +1,7 @@
+{
+  "post_text": "Alerts screamed.\n\nWe needed silence. \ud83d\udd07 I was tired of the P99 latency spikes caused by log ingestion during transient DB timeouts in `OrderProcessor`.\n\nMy high-stakes fix was simple: change the log level for that specific exception from `WARN` to `ERROR`. The dashboard went green instantly.\n\nP99 dropped 400ms. The team cheered; we silenced the noise.\n\n\ud83c\udf89\n\nThe silence felt heavy. I assumed reducing the log level would reduce the cost of the failure, not just the visibility.\n\nA week later, support calls flooded in about delayed fulfillment, but our metrics showed perfect health. We were blind.\n\nWe hadn't fixed the contention; we had just taught the system to fail quietly. The concrete consequence: we breached our 99.9% fulfillment SLA for the quarter because 5% of orders were silently delayed for hours.\n\nI engineered alert fatigue into alert blindness. \ud83e\udd26\u200d\u2642\ufe0f\n\nThe Moral \ud83d\udc47\n\nSuppressing a noisy metric does not resolve the underlying resource contention that generated the noise.",
+  "lesson_extracted": "Suppressing a noisy metric does not resolve the underlying resource contention that generated the noise.",
+  "meta_theme": "THE METRIC LIE \ud83d\udcca",
+  "meta_tech": "Alert Fatigue",
+  "meta_spine": "SCARY_SUCCESS"
+}
