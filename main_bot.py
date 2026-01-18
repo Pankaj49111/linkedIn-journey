@@ -46,6 +46,14 @@ FIXED_CTA = f"""
 FIXED_HASHTAGS = "\n\n#backend #engineering #software #java"
 
 # =============================
+# 🛡️ JVM FIREWALL (NEW)
+# =============================
+FORBIDDEN_TECH_TERMS = [
+    "node", "nodejs", "event loop", "goroutine", "golang", " go ",
+    "python", "gil", "rust", ".net", "c#", "async await"
+]
+
+# =============================
 # 🧠 MUTATION ENGINE
 # =============================
 PROMPT_MUTATIONS = {
@@ -89,6 +97,11 @@ PROMPT_MUTATIONS = {
     "MORAL_STRUCTURE_FAIL": """
     CRITICAL STRUCTURE FAILURE: The moral section is malformed.
     Ensure exactly ONE sentence appears after 'The Moral 👇'.
+    """,
+    "FORBIDDEN_TERM": """
+    CRITICAL FAILURE: You used a forbidden term (Node, Go, Python, etc.).
+    This account is strictly JVM/Backend engineering.
+    Rewrite entirely using JVM terminology (Thread Pools, GC, Heap) or generic systems terms.
     """
 }
 
@@ -197,6 +210,13 @@ def clean_text(text, forbidden_phrases=None):
     text = text.replace("*", "")
     text = re.sub(r'(?i)^(Hook|Lesson|Reflection|Post|Body):', '', text, flags=re.MULTILINE)
     text = text.replace("```json", "").replace("```", "")
+
+    # 🚨 JVM FIREWALL
+    for term in FORBIDDEN_TECH_TERMS:
+        # Use regex boundary to avoid matching "go" inside "good"
+        if re.search(rf"\b{re.escape(term.strip())}\b", text, re.IGNORECASE):
+            raise ValueError(f"Forbidden term detected: '{term.strip()}'")
+
     if forbidden_phrases:
         for phrase in forbidden_phrases:
             pattern = r'(?im)^\s*' + re.escape(phrase) + r'\s*$'
@@ -413,7 +433,7 @@ def get_image_from_folder():
 def upload_image_to_linkedin(urn, image_path):
     safe_print("Uploading image...")
     init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
-    # Using 202401 as a safe default for image upload as well
+    # Safe version
     headers = {'Authorization': f'Bearer {LINKEDIN_TOKEN}', 'Content-Type': 'application/json', 'LinkedIn-Version': '202401', 'X-Restli-Protocol-Version': '2.0.0'}
     payload = {"initializeUploadRequest": {"owner": f"urn:li:person:{urn}"}}
     try:
@@ -534,7 +554,7 @@ def build_prompt(act, episode, theme, tech, prev_lessons, spine_instructions, ac
 
     return f"""
 Role:
-You are a Senior Backend Engineer reflecting on a real production experience.
+You are a Senior Backend Engineer (JAVA/JVM focused) reflecting on a real production experience.
 
 INVISIBLE CONTEXT:
 - Life Stage: {act['name']} (Episode {episode})
@@ -599,44 +619,53 @@ def generate_with_review(client, base_prompt, forbidden_phrases):
         try:
             response = generate_safe(client, current_prompt, temperature=temp)
             content = json.loads(response.text)
-        except (json.JSONDecodeError, ValueError, Exception) as e:
-            safe_print(f"⚠️ Generation Issue: {e}. Retrying...")
-            continue
 
-        post = clean_text(content["post_text"], forbidden_phrases)
-        content["post_text"] = post
-        last_content = content
+            # This handles both cleaning AND Forbidden Term checks
+            post = clean_text(content["post_text"], forbidden_phrases)
 
-        passed_structure, failure_axis = structural_precheck(post)
-        if not passed_structure:
-            safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
-            if attempt < MAX_ATTEMPTS - 1:
-                mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
-                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
-                continue
+            content["post_text"] = post
+            last_content = content
 
-        try:
+            passed_structure, failure_axis = structural_precheck(post)
+            if not passed_structure:
+                safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
+                if attempt < MAX_ATTEMPTS - 1:
+                    mutation = PROMPT_MUTATIONS.get(failure_axis, "Fix structure.")
+                    feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{mutation}"
+                    continue
+
             judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
             raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
             verdict_data = json.loads(raw_judge)
-        except Exception:
-            safe_print("⚠️ Judge Failed. Assuming FAIL.")
-            verdict_data = {"verdict": "FAIL", "failure_axis": "NO_HUMILITY"}
 
-        safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
+            safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
 
-        if verdict_data.get("verdict") == "PASS_9_PLUS":
-            return content
+            if verdict_data.get("verdict") == "PASS_9_PLUS":
+                return content
 
-        axis = verdict_data.get("failure_axis", "NO_HUMILITY")
-        if axis == previous_axis:
-            safe_print("⚠️ Same failure axis repeated. Stopping mutation to preserve authenticity.")
-            return content
+            axis = verdict_data.get("failure_axis", "NO_HUMILITY")
+            if axis == previous_axis:
+                safe_print("⚠️ Same failure axis repeated. Stopping mutation to preserve authenticity.")
+                return content
 
-        previous_axis = axis
-        mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
-        safe_print(f"💉 Injecting Mutation: {axis}")
-        feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
+            previous_axis = axis
+            mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["NO_HUMILITY"])
+            safe_print(f"💉 Injecting Mutation: {axis}")
+            feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite the story applying this fix."
+
+        except ValueError as ve:
+            # Handle Forbidden Terms (Go, Node, etc.)
+            safe_print(f"🚫 {ve}")
+            if attempt < MAX_ATTEMPTS - 1:
+                feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{PROMPT_MUTATIONS['FORBIDDEN_TERM']}"
+                continue
+            else:
+                safe_print("❌ Failed due to Forbidden Term on last attempt.")
+                sys.exit(1)
+
+        except (json.JSONDecodeError, Exception) as e:
+            safe_print(f"⚠️ Generation Issue: {e}. Retrying...")
+            continue
 
     safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
 

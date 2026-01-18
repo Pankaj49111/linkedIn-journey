@@ -1,6 +1,6 @@
 {
   "act_index": 1,
-  "episode": 10,
+  "episode": 9,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -17,8 +17,7 @@
     "Connection pooling manages the database resource, but synchronous application code dictates the resource's lease time.",
     "The quality of a system metric is defined by what it explicitly excludes.",
     "Distributed locking mechanisms move the transaction failure point from database contention to ephemeral network state.",
-    "The synchronous lease time of a pooled connection defines the ceiling of concurrent throughput.",
-    "The Kubernetes scheduler treats an OOMKill as a self-healing event; the application treats it as an unhandled transaction failure."
+    "The synchronous lease time of a pooled connection defines the ceiling of concurrent throughput."
   ],
   "last_themes": [
     "THE METRIC LIE \ud83d\udcca",
@@ -32,7 +31,7 @@
     "Misleading Metrics",
     "Distributed Locking",
     "Redis",
-    "Kubernetes OOMs"
+    "Misleading Metrics"
   ],
   "last_spines": [
     "CLASSIC_FAILURE",
