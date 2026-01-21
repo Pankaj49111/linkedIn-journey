@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 0,
+  "episode": 1,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -18,21 +18,25 @@
     "The quality of a system metric is defined by what it explicitly excludes.",
     "Distributed locking mechanisms move the transaction failure point from database contention to ephemeral network state.",
     "The synchronous lease time of a pooled connection defines the ceiling of concurrent throughput.",
-    "Suppressing a noisy metric does not resolve the underlying resource contention that generated the noise."
+    "Suppressing a noisy metric does not resolve the underlying resource contention that generated the noise.",
+    "Silent success on a corrupted record is the most dangerous failure mode in distributed systems."
   ],
   "last_themes": [
     "THE FALSE FIX \ud83d\udd27",
     "THE CRASH \ud83d\udea8",
     "THE SILENT VICTORY \ud83c\udfc6",
-    "THE METRIC LIE \ud83d\udcca"
+    "THE METRIC LIE \ud83d\udcca",
+    "THE OWNERSHIP GAP \ud83e\udde9"
   ],
   "last_tech": [
     "Redis",
     "Misleading Metrics",
     "Alert Fatigue",
-    "Idempotency"
+    "Idempotency",
+    "API Contracts"
   ],
   "last_spines": [
-    "CLASSIC_FAILURE"
+    "CLASSIC_FAILURE",
+    "SILENT_FAILURE"
   ]
 }
