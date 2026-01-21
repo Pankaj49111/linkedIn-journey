@@ -1,0 +1,7 @@
+{
+  "post_text": "Contract changes are integrity risks.\n\nI optimized the payload.\n\nAs the domain owner, I felt confident simplifying the response for our highest-volume internal API. I thought the contract change was purely an optimization; why send data 95% of consumers ignore? I updated the OpenAPI spec and deployed.\n\nOur service metrics were perfect: low latency, high throughput. Everything was green. \ud83d\udcc8\n\nA week later, the BI team flagged a small, persistent discrepancy in cohort data\u2014a few hundred users were missing critical attributes. No alerts fired.\n\nWe traced the data lineage back through three services. The root cause was a downstream consumer (Service B) silently failing its internal integrity check because the field I made optional was missing. Service B wrote corrupted records successfully.\n\nThe damage was invisible because the failure mode was a successful write of bad data, not an HTTP 500. The cost wasn't CPU cycles; it was weeks of corrupted user profiles. This was the ownership gap \ud83e\udde9. \ud83d\udc94\n\nThe Moral \ud83d\udc47\n\nAn API contract is a shared integrity boundary, not merely a data transfer specification.",
+  "lesson_extracted": "Silent success on a corrupted record is the most dangerous failure mode in distributed systems.",
+  "meta_theme": "THE OWNERSHIP GAP \ud83e\udde9",
+  "meta_tech": "API Contracts",
+  "meta_spine": "SILENT_FAILURE"
+}
