@@ -1,7 +1,0 @@
-{
-  "post_text": "CQRS promised scale.\n\nIt delivered a hidden failure. I champion architectural purity.\n\nTo handle peak load, we implemented CQRS. The Command side scaled beautifully, tripling our write throughput instantly.\n\nLatency metrics plummeted 80%. The team cheered.\n\n\ud83c\udf89 But a cold dread settled in. The success felt brittle.\n\nI watched the consistency lag monitor: zero. Perfect.\n\nI assumed that zero lag meant the read model was perfectly synchronized. I thought the consumer group was healthy and progressing.\n\nIt never occurred to me that zero lag could mean the consumer was silently stuck, failing to commit offsets due to a transient JVM spike. The consumer was technically running, but it was reprocessing the same batch endlessly.\n\nThe Query database missed four hours of critical inventory updates. \ud83d\udc80 We faced a painful manual recovery, forcing the entire inventory reporting system offline for six hours.\n\n\ud83d\udcb8\n\nThe Moral \ud83d\udc47\n\nThe absence of a failure metric is not proof of success; it is often proof of architectural blindness.",
-  "lesson_extracted": "A consistency monitor must track progress and throughput, not just backlog size.",
-  "meta_theme": "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
-  "meta_tech": "CQRS",
-  "meta_spine": "SCARY_SUCCESS"
-}

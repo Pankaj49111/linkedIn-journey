@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 1,
+  "episode": 2,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -19,24 +19,25 @@
     "Distributed locking mechanisms move the transaction failure point from database contention to ephemeral network state.",
     "The synchronous lease time of a pooled connection defines the ceiling of concurrent throughput.",
     "Suppressing a noisy metric does not resolve the underlying resource contention that generated the noise.",
-    "Silent success on a corrupted record is the most dangerous failure mode in distributed systems."
+    "Silent success on a corrupted record is the most dangerous failure mode in distributed systems.",
+    "A consistency monitor must track progress and throughput, not just backlog size."
   ],
   "last_themes": [
-    "THE FALSE FIX \ud83d\udd27",
     "THE CRASH \ud83d\udea8",
     "THE SILENT VICTORY \ud83c\udfc6",
     "THE METRIC LIE \ud83d\udcca",
-    "THE OWNERSHIP GAP \ud83e\udde9"
+    "THE OWNERSHIP GAP \ud83e\udde9",
+    "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f"
   ],
   "last_tech": [
-    "Redis",
     "Misleading Metrics",
     "Alert Fatigue",
     "Idempotency",
-    "API Contracts"
+    "API Contracts",
+    "CQRS"
   ],
   "last_spines": [
-    "CLASSIC_FAILURE",
-    "SILENT_FAILURE"
+    "SILENT_FAILURE",
+    "SCARY_SUCCESS"
   ]
 }
