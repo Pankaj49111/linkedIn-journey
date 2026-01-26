@@ -1,14 +1,16 @@
 {
   "last_topics": [
     "Backfills causing production brownouts",
-    "Eviction policies silently killing business logic"
+    "Eviction policies silently killing business logic",
+    "Isolation levels breaking financial correctness"
   ],
   "last_categories": [
     "derived_stores",
-    "redis"
+    "redis",
+    "relational_db"
   ],
   "last_axes": [
-    "Backpressure Axis",
-    "Failure Detection Axis"
+    "Failure Detection Axis",
+    "State Ownership Axis"
   ]
 }
