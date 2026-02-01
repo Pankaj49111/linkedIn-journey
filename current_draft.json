@@ -1,7 +1,0 @@
-{
-  "post_text": "Metrics lied.\n\nThe system was silently dying. \ud83d\udc80\n\nI am a senior engineer; I trust the dashboards. We defined our SLI for the critical background worker as \"99th percentile processing latency.\"\n\nWe confidently set the SLO at 500ms.\n\nThe dashboard was beautiful. P99 latency stayed flat at 450ms, well within budget. All systems looked green. Success! \u2705\n\nBut the throughput graph looked jagged. The input queue depth would spike, then immediately drop. I dismissed it as transient network noise.\n\nI assumed P99 latency measured total work completed. It never occurred to me that the metric only tracked successful processing time before the worker gave up.\n\nWeeks later, during an audit, we found 0.5% of daily records stuck in an 'IN_PROGRESS' loop. They weren't failing; they were timing out silently and immediately pulled by another worker.\n\nThe latency metric was green because the workers were fast at giving up. The database accumulated stale locks.\n\nThe silent cost was four weeks of manual data cleanup for the operations team. \ud83d\udcb8\n\nThe Moral \ud83d\udc47\n\nA success metric that excludes failure states hides the true cost of data integrity debt.",
-  "lesson_extracted": "A success metric that excludes failure states hides the true cost of data integrity debt.",
-  "meta_theme": "THE METRIC LIE \ud83d\udcca",
-  "meta_tech": "SLIs/SLOs",
-  "meta_spine": "SILENT_FAILURE"
-}

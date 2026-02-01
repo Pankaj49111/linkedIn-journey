@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 3,
+  "episode": 4,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -21,24 +21,25 @@
     "Suppressing a noisy metric does not resolve the underlying resource contention that generated the noise.",
     "Silent success on a corrupted record is the most dangerous failure mode in distributed systems.",
     "A consistency monitor must track progress and throughput, not just backlog size.",
-    "The pool size must scale with application concurrency needs, not database capacity limits."
+    "The pool size must scale with application concurrency needs, not database capacity limits.",
+    "A success metric that excludes failure states hides the true cost of data integrity debt."
   ],
   "last_themes": [
-    "THE SILENT VICTORY \ud83c\udfc6",
     "THE METRIC LIE \ud83d\udcca",
     "THE OWNERSHIP GAP \ud83e\udde9",
     "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
-    "THE BORING STACK \u2764\ufe0f"
+    "THE BORING STACK \u2764\ufe0f",
+    "THE METRIC LIE \ud83d\udcca"
   ],
   "last_tech": [
-    "Alert Fatigue",
     "Idempotency",
     "API Contracts",
     "CQRS",
-    "Connection Pooling"
+    "Connection Pooling",
+    "SLIs/SLOs"
   ],
   "last_spines": [
-    "SCARY_SUCCESS",
-    "CLASSIC_FAILURE"
+    "CLASSIC_FAILURE",
+    "SILENT_FAILURE"
   ]
 }
