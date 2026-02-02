@@ -3,15 +3,16 @@
     "Backfills causing production brownouts",
     "Eviction policies silently killing business logic",
     "Isolation levels breaking financial correctness",
-    "Indexes accelerating reads while killing writes"
+    "Indexes accelerating reads while killing writes",
+    "Hot partitions created by innocent keys"
   ],
   "last_categories": [
-    "redis",
     "relational_db",
-    "relational_db"
+    "relational_db",
+    "nosql_misuse"
   ],
   "last_axes": [
-    "State Ownership Axis",
-    "Recovery Cost Axis"
+    "Recovery Cost Axis",
+    "Backpressure Axis"
   ]
 }

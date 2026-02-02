@@ -22,5 +22,11 @@
     "topic": "relational_db:Indexes accelerating reads while killing writes",
     "status": "published",
     "text": "A quiet doubt enters my mind when latency profiles look too clean.\n\nThe candidate detailed how they shifted index updates off the critical write path using an internal JVM queue. They correctly identified the subsequent generational garbage collection pressure spike under extreme load."
+  },
+  {
+    "date": "2026-02-02",
+    "topic": "nosql_misuse:Hot partitions created by innocent keys",
+    "status": "published",
+    "text": "Hashing is not a load balancer.\n\nWe often assume that if the key distribution is statistically uniform, the resulting resource consumption will also be uniform. The candidate spent significant time detailing the mathematical probability of collision, suggesting a better hashing function as the primary mitigation.\n\nMy visceral reaction was a familiar sinking feeling. They were solving the symptom (key clustering) without addressing the failure mode (resource contention).\n\nMost requests were fast. A few were unbearably slow.\n\nThey proposed increasing the partition count. It sounds correct until you've lived it.\n\nThis only delays the inevitable saturation if the workload remains skewed.\n\nI waited for them to mention the impact of the hot partition on the shared thread pool\u2014how the saturated worker threads stop acknowledging TCP windows, causing upstream queues to fill. This is the critical Backpressure Axis.\n\nThey never did. They continued optimizing the input, ignoring the choked output.\n\nI watched them pivot back to algorithmic fixes, ignoring the resulting GC pressure on the overloaded JVM instance. I chose not to ask about specific queue depth limits or rejection strategies.\n\nThe signal was clear: they see load as a static distribution problem, not a dynamic pressure problem.\n\nThis is usually where the discussion stops being about Load Distribution and starts revealing how someone reasons about Cascading Failure."
   }
 ]
