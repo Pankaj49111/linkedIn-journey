@@ -4,15 +4,16 @@
     "Eviction policies silently killing business logic",
     "Isolation levels breaking financial correctness",
     "Indexes accelerating reads while killing writes",
-    "Hot partitions created by innocent keys"
+    "Hot partitions created by innocent keys",
+    "Distributed locks: The Clock Skew problem"
   ],
   "last_categories": [
     "relational_db",
-    "relational_db",
-    "nosql_misuse"
+    "nosql_misuse",
+    "redis"
   ],
   "last_axes": [
-    "Recovery Cost Axis",
-    "Backpressure Axis"
+    "Backpressure Axis",
+    "Ordering Guarantees Axis"
   ]
 }
