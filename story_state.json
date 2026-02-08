@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 5,
+  "episode": 6,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -23,24 +23,25 @@
     "A consistency monitor must track progress and throughput, not just backlog size.",
     "The pool size must scale with application concurrency needs, not database capacity limits.",
     "A success metric that excludes failure states hides the true cost of data integrity debt.",
-    "Scaling event streams requires validating the business dependency graph, not just the technical keying strategy."
+    "Scaling event streams requires validating the business dependency graph, not just the technical keying strategy.",
+    "The entity that triggers invalidation is often not the last service that attempts to read it."
   ],
   "last_themes": [
-    "THE OWNERSHIP GAP \ud83e\udde9",
     "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
     "THE BORING STACK \u2764\ufe0f",
     "THE METRIC LIE \ud83d\udcca",
-    "THE CRASH \ud83d\udea8"
+    "THE CRASH \ud83d\udea8",
+    "THE EUREKA MOMENT \ud83d\udca1"
   ],
   "last_tech": [
-    "API Contracts",
     "CQRS",
     "Connection Pooling",
     "SLIs/SLOs",
-    "Event Ordering"
+    "Event Ordering",
+    "Cache Invalidation"
   ],
   "last_spines": [
-    "SILENT_FAILURE",
-    "SCARY_SUCCESS"
+    "SCARY_SUCCESS",
+    "CLASSIC_FAILURE"
   ]
 }
