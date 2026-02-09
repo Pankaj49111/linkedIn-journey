@@ -5,15 +5,16 @@
     "Isolation levels breaking financial correctness",
     "Indexes accelerating reads while killing writes",
     "Hot partitions created by innocent keys",
-    "Distributed locks: The Clock Skew problem"
+    "Distributed locks: The Clock Skew problem",
+    "The myth of 'Exactly Once' in distributed systems"
   ],
   "last_categories": [
-    "relational_db",
     "nosql_misuse",
-    "redis"
+    "redis",
+    "kafka"
   ],
   "last_axes": [
-    "Backpressure Axis",
-    "Ordering Guarantees Axis"
+    "Ordering Guarantees Axis",
+    "Human Assumption Axis"
   ]
 }
