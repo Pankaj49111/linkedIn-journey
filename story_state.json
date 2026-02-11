@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 6,
+  "episode": 7,
   "previous_lessons": [
     "Never trust default framework settings regarding critical resource pooling or transaction management without rigorous high-concurrency testing.",
     "Framework defaults for transaction timeouts are often dangerously mismatched to real-world high-contention database workloads.",
@@ -24,24 +24,25 @@
     "The pool size must scale with application concurrency needs, not database capacity limits.",
     "A success metric that excludes failure states hides the true cost of data integrity debt.",
     "Scaling event streams requires validating the business dependency graph, not just the technical keying strategy.",
-    "The entity that triggers invalidation is often not the last service that attempts to read it."
+    "The entity that triggers invalidation is often not the last service that attempts to read it.",
+    "A fast response time is a liability when the underlying state has silently expired."
   ],
   "last_themes": [
-    "THE ARCHITECTURAL TRAP \ud83c\udfd7\ufe0f",
     "THE BORING STACK \u2764\ufe0f",
     "THE METRIC LIE \ud83d\udcca",
     "THE CRASH \ud83d\udea8",
-    "THE EUREKA MOMENT \ud83d\udca1"
+    "THE EUREKA MOMENT \ud83d\udca1",
+    "THE SILENT VICTORY \ud83c\udfc6"
   ],
   "last_tech": [
-    "CQRS",
     "Connection Pooling",
     "SLIs/SLOs",
     "Event Ordering",
-    "Cache Invalidation"
+    "Cache Invalidation",
+    "Cold Starts"
   ],
   "last_spines": [
-    "SCARY_SUCCESS",
-    "CLASSIC_FAILURE"
+    "CLASSIC_FAILURE",
+    "SILENT_FAILURE"
   ]
 }
