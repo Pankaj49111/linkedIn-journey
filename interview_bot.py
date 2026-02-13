@@ -25,6 +25,7 @@ HISTORY_FILE = "interview_history.json"
 STATE_FILE = "interview_state.json"
 FAILED_DRAFTS_FILE = "interview_failed_drafts.json"
 
+# Prioritized list of API versions to try (Newest -> Oldest)
 LINKEDIN_VERSIONS_FALLBACK = [
     "202511", "202510", "202509", "202508", "202507", "202506",
     "202505", "202504", "202503", "202502", "202501",
@@ -32,6 +33,98 @@ LINKEDIN_VERSIONS_FALLBACK = [
 ]
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #interviews #java #systemsdesign #jvm"
+
+# =============================
+# 🎭 WRITING MODES
+# =============================
+WRITING_MODES = {
+    "CONFESSIONAL": 0.45,      # "I messed up..."
+    "INTERVIEW_PATTERN": 0.40, # "I see this mistake..."
+    "HYBRID": 0.15             # "I see this mistake, which reminds me of when I messed up..."
+}
+
+# =============================
+# 🌫️ IDENTITY LOOP (Voice Legacy)
+# =============================
+HUMAN_LINES = [
+    "That part bothered me.",
+    "I remember staring at the dashboard.",
+    "I almost missed it.",
+    "Something felt off.",
+    "I closed my laptop for a minute.",
+    "It seemed insignificant at the time.",
+    "The logs were quiet. Too quiet."
+]
+
+HUMAN_SCENES = [
+    "I opened Grafana again.",
+    "I refreshed the logs for the third time.",
+    "Slack stayed quiet.",
+    "I re-read the same metric.",
+    "I pulled up the dashboard and stared.",
+    "I scrolled back through the deploy history.",
+    "I checked the timestamps twice.",
+    "I poured another coffee.",
+    "The room was freezing."
+]
+
+TRAILING_LINES = [
+    "That’s when it clicked.",
+    "I paused.",
+    "Something didn’t add up.",
+    "That part stuck with me.",
+    "I didn't say anything."
+]
+
+FATIGUE_LINES = [
+    "These days, I don’t rush fixes.",
+    "I’ve learned to sit with uncertainty.",
+    "Earlier in my career I would have pushed harder.",
+    "Now I slow down.",
+    "I don't argue about this anymore.",
+    "It's not worth the pager fatigue."
+]
+
+# =============================
+# 🔥 ATTENTION LOOP (Engagement Friction)
+# =============================
+ENGAGEMENT_HOOKS = [
+    "Most people stop thinking right here.",
+    "This is where teams usually get comfortable.",
+    "Almost nobody asks what happens next.",
+    "That assumption costs more than latency.",
+    "This is where production quietly disagrees.",
+    "This sounds correct in theory."
+]
+
+# 🧨 BELIEF BREAKERS (Cognitive Disruption) - NEW
+BELIEF_BREAKERS = [
+    "Scaling didn't fix it.",
+    "The dashboard was lying.",
+    "Latency wasn’t the problem.",
+    "The system wasn’t slow. We were.",
+    "Availability hid the failure.",
+    "The architecture was fine. The assumptions weren’t.",
+    "Nothing crashed. Everything degraded.",
+    "The metrics were green. The system wasn’t."
+]
+
+CURIOSITY_ENDINGS = [
+    "I still think about that.",
+    "That part stayed with me.",
+    "Production remembers.",
+    "Some lessons don’t resolve.",
+    "That wasn’t the end.",
+    "We got lucky that time.",
+    "That caused a rollback.",      # Harsher
+    "Support tickets followed."    # Harsher
+]
+
+CONFESSION_PHRASES = [
+    "I assumed", "I thought", "I was convinced",
+    "It never occurred to me", "I was certain",
+    "I guessed", "I ignored"
+]
 
 # =============================
 # 🛡️ JVM FIREWALL
@@ -65,21 +158,11 @@ PROMPT_MUTATIONS = {
     Add a sentence that implicates the reader/candidate, like:
     "It's an answer I've heard myself give." or "Most strong resumes stop right here."
     """,
-    "EXPLICIT_TEACHING": """
-    EDITOR REQUEST: You are explaining the technology. Stop.
-    Assume the reader knows what the tech is.
-    Focus entirely on what the candidate's answer REVEALS about their seniority.
-    """,
-    "PRODUCT_NAMING_DETECTED": """
-    EDITOR REQUEST: Do NOT name specific products (WhatsApp, Uber, Netflix).
-    Describe the BEHAVIOR instead:
-    - Instead of "WhatsApp", say "Long-lived connection systems".
-    - Instead of "Twitter", say "High fan-out models".
-    """,
-    "DESIGN_TUTORIAL_TONE": """
-    EDITOR REQUEST: You are explaining 'How to design X'. Stop.
-    Focus on 'Where the design breaks'.
-    Identify the specific pressure point (e.g., reconnect storms) where the candidate's model collapses.
+    "LOW_CONFESSION_DENSITY": f"""
+    EDITOR REQUEST: You are failing the Authenticity Check.
+    You MUST include at least one of these exact phrases:
+    {", ".join(CONFESSION_PHRASES)}
+    Own the mistake explicitly. Don't just describe what happened; describe your wrong belief.
     """,
     "FORBIDDEN_TERM": """
     CRITICAL FAILURE: You used a forbidden term (Node, Go, Python, etc.).
@@ -93,130 +176,35 @@ PROMPT_MUTATIONS = {
 # =============================
 INTERVIEW_TOPICS = {
     "relational_db": [
-        {
-            "topic": "Isolation levels breaking financial correctness",
-            "axis": "State Ownership Axis",
-            "signal": "Do they understand where truth lives vs where it is read?",
-            "anchor": "The numbers were internally consistent. They were still wrong."
-        },
-        {
-            "topic": "Connection pools masking slow queries",
-            "axis": "Resource Contention Axis",
-            "signal": "Do they recognize indirect bottlenecks beyond CPU?",
-            "anchor": "The database wasn't slow. Requests were just waiting."
-        },
-        {
-            "topic": "Indexes accelerating reads while killing writes",
-            "axis": "Recovery Cost Axis",
-            "signal": "Trade-off awareness and rollback thinking.",
-            "anchor": "The improvement worked. Rolling it back didn't."
-        },
-        {
-            "topic": "Long transactions holding invisible locks",
-            "axis": "Resource Contention Axis",
-            "signal": "Debugging without alerts; lock visibility intuition.",
-            "anchor": "Nothing was failing. Everything was blocked."
-        }
+        {"topic": "Isolation levels breaking financial correctness", "axis": "State Ownership Axis", "signal": "Do they understand where truth lives vs where it is read?", "anchor": "The numbers were internally consistent. They were still wrong."},
+        {"topic": "Connection pools masking slow queries", "axis": "Resource Contention Axis", "signal": "Do they recognize indirect bottlenecks beyond CPU?", "anchor": "The database wasn't slow. Requests were just waiting."},
+        {"topic": "Indexes accelerating reads while killing writes", "axis": "Recovery Cost Axis", "signal": "Trade-off awareness and rollback thinking.", "anchor": "The improvement worked. Rolling it back didn't."},
+        {"topic": "Long transactions holding invisible locks", "axis": "Resource Contention Axis", "signal": "Debugging without alerts; lock visibility intuition.", "anchor": "Nothing was failing. Everything was blocked."}
     ],
     "nosql_misuse": [
-        {
-            "topic": "Eventual consistency leaking into user workflows",
-            "axis": "State Ownership Axis",
-            "signal": "Modeling inconsistency impact on users.",
-            "anchor": "The system behaved correctly. Users didn't experience it that way."
-        },
-        {
-            "topic": "Hot partitions created by innocent keys",
-            "axis": "Backpressure Axis",
-            "signal": "Load distribution intuition and non-linear scaling.",
-            "anchor": "Most requests were fast. A few were unbearably slow."
-        },
-        {
-            "topic": "Compaction pauses mistaken for traffic spikes",
-            "axis": "Visibility vs Reality Axis",
-            "signal": "Metric skepticism and false correlation detection.",
-            "anchor": "Traffic never increased. Latency did."
-        }
+        {"topic": "Eventual consistency leaking into user workflows", "axis": "State Ownership Axis", "signal": "Modeling inconsistency impact on users.", "anchor": "The system behaved correctly. Users didn't experience it that way."},
+        {"topic": "Hot partitions created by innocent keys", "axis": "Backpressure Axis", "signal": "Load distribution intuition and non-linear scaling.", "anchor": "Most requests were fast. A few were unbearably slow."},
+        {"topic": "Compaction pauses mistaken for traffic spikes", "axis": "Visibility vs Reality Axis", "signal": "Metric skepticism and false correlation detection.", "anchor": "Traffic never increased. Latency did."}
     ],
     "derived_stores": [
-        {
-            "topic": "Dual writes without atomicity",
-            "axis": "State Ownership Axis",
-            "signal": "Repair complexity awareness.",
-            "anchor": "We couldn't tell which side was wrong anymore."
-        },
-        {
-            "topic": "Search indexes lagging behind truth",
-            "axis": "Visibility vs Reality Axis",
-            "signal": "Asynchronous correctness and user trust impact.",
-            "anchor": "The data was correct. The answers weren't."
-        },
-        {
-            "topic": "Backfills causing production brownouts",
-            "axis": "Backpressure Axis",
-            "signal": "Operational empathy and safe repair strategies.",
-            "anchor": "Fixing old data broke new traffic."
-        }
+        {"topic": "Dual writes without atomicity", "axis": "State Ownership Axis", "signal": "Repair complexity awareness.", "anchor": "We couldn't tell which side was wrong anymore."},
+        {"topic": "Search indexes lagging behind truth", "axis": "Visibility vs Reality Axis", "signal": "Asynchronous correctness and user trust impact.", "anchor": "The data was correct. The answers weren't."},
+        {"topic": "Backfills causing production brownouts", "axis": "Backpressure Axis", "signal": "Operational empathy and safe repair strategies.", "anchor": "Fixing old data broke new traffic."}
     ],
     "kafka": [
-        {
-            "topic": "Ordering guarantees vs Consumer Group rebalances",
-            "axis": "Ordering Guarantees Axis",
-            "signal": "Replay awareness and non-linear time reasoning.",
-            "anchor": "The event arrived again. This time it mattered."
-        },
-        {
-            "topic": "The myth of 'Exactly Once' in distributed systems",
-            "axis": "Human Assumption Axis",
-            "signal": "Overconfidence detection; pragmatism vs theory.",
-            "anchor": "The guarantee existed. The assumptions didn't."
-        },
-        {
-            "topic": "Consumer lag: Latency vs Throughput trade-off",
-            "axis": "Backpressure Axis",
-            "signal": "Queueing intuition and trade-off reasoning.",
-            "anchor": "Nothing timed out. Everything was late."
-        }
+        {"topic": "Ordering guarantees vs Consumer Group rebalances", "axis": "Ordering Guarantees Axis", "signal": "Replay awareness and non-linear time reasoning.", "anchor": "The event arrived again. This time it mattered."},
+        {"topic": "The myth of 'Exactly Once' in distributed systems", "axis": "Human Assumption Axis", "signal": "Overconfidence detection; pragmatism vs theory.", "anchor": "The guarantee existed. The assumptions didn't."},
+        {"topic": "Consumer lag: Latency vs Throughput trade-off", "axis": "Backpressure Axis", "signal": "Queueing intuition and trade-off reasoning.", "anchor": "Nothing timed out. Everything was late."}
     ],
     "redis": [
-        {
-            "topic": "Using Redis as a primary database (The Persistence Trap)",
-            "axis": "State Ownership Axis",
-            "signal": "Durability thinking and long-term risk awareness.",
-            "anchor": "It was fast until it wasn't there anymore."
-        },
-        {
-            "topic": "Distributed locks: The Clock Skew problem",
-            "axis": "Ordering Guarantees Axis",
-            "signal": "Time skepticism and failure mode imagination.",
-            "anchor": "The lock expired. The work didn't."
-        },
-        {
-            "topic": "Eviction policies silently killing business logic",
-            "axis": "Failure Detection Axis",
-            "signal": "Silent failure awareness and cache skepticism.",
-            "anchor": "The system forgot something important."
-        }
+        {"topic": "Using Redis as a primary database (The Persistence Trap)", "axis": "State Ownership Axis", "signal": "Durability thinking and long-term risk awareness.", "anchor": "It was fast until it wasn't there anymore."},
+        {"topic": "Distributed locks: The Clock Skew problem", "axis": "Ordering Guarantees Axis", "signal": "Time skepticism and failure mode imagination.", "anchor": "The lock expired. The work didn't."},
+        {"topic": "Eviction policies silently killing business logic", "axis": "Failure Detection Axis", "signal": "Silent failure awareness and cache skepticism.", "anchor": "The system forgot something important."}
     ],
     "jvm_mechanics": [
-        {
-            "topic": "Thread Pool Exhaustion vs CPU saturation",
-            "axis": "Resource Contention Axis",
-            "signal": "Queue vs compute distinction.",
-            "anchor": "CPU was idle. Requests weren't moving."
-        },
-        {
-            "topic": "Stop-the-world GC pauses vs Network Latency",
-            "axis": "Visibility vs Reality Axis",
-            "signal": "Root cause patience and JVM internals intuition.",
-            "anchor": "Everything froze. The network took the blame."
-        },
-        {
-            "topic": "JVM Warm-up: Why autoscaling is slow",
-            "axis": "Initialization & Warm-up Axis",
-            "signal": "Lifecycle thinking; cold vs steady-state reasoning.",
-            "anchor": "Scaling worked. Starting didn't."
-        }
+        {"topic": "Thread Pool Exhaustion vs CPU saturation", "axis": "Resource Contention Axis", "signal": "Queue vs compute distinction.", "anchor": "CPU was idle. Requests weren't moving."},
+        {"topic": "Stop-the-world GC pauses vs Network Latency", "axis": "Visibility vs Reality Axis", "signal": "Root cause patience and JVM internals intuition.", "anchor": "Everything froze. The network took the blame."},
+        {"topic": "JVM Warm-up: Why autoscaling is slow", "axis": "Initialization & Warm-up Axis", "signal": "Lifecycle thinking; cold vs steady-state reasoning.", "anchor": "Scaling worked. Starting didn't."}
     ]
 }
 
@@ -258,15 +246,19 @@ def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=True)
 
+def select_writing_mode():
+    modes = list(WRITING_MODES.keys())
+    weights = list(WRITING_MODES.values())
+    return random.choices(modes, weights=weights, k=1)[0]
+
 def clean_text(text):
     if not text: return ""
     text = text.replace("*", "")
     text = text.replace("```json", "").replace("```", "")
 
-    # 🚨 HARD BLOCK: Raise error if forbidden term is found
+    # 🚨 JVM FIREWALL
     for term in FORBIDDEN_TECH_TERMS:
         if re.search(rf"\b{re.escape(term.strip())}\b", text, re.IGNORECASE):
-            # Exception triggers the mutation loop to retry
             raise ValueError(f"Forbidden term detected: '{term.strip()}'")
 
     text = re.sub(r'(?i)^(Hook|Lesson|Insight|Signal|Trap|Reality|Common Answer|Where it breaks|Where it holds|Context|Observation):', '', text, flags=re.MULTILINE)
@@ -289,73 +281,127 @@ def log_failure(post, axis, note, topic, subtopic):
     })
     save_json(FAILED_DRAFTS_FILE, failures[-50:])
 
+# =============================
+# 🌫️ IDENTITY LOOP (Drift)
+# =============================
+def apply_human_drift(text):
+    paragraphs = text.split('\n\n')
+
+    # 1. MICRO HUMAN ACTION (35% chance)
+    if random.random() < 0.35 and len(paragraphs) > 3:
+        action = random.choice(HUMAN_SCENES)
+        insert_at = random.randint(1, min(3, len(paragraphs)-2))
+        paragraphs.insert(insert_at, action)
+        safe_print(f"🌫️ Applied Human Scene: '{action}'")
+
+    # 2. EMOTIONAL NOISE (25% chance)
+    elif random.random() < 0.25 and len(paragraphs) > 2:
+        noise = random.choice(HUMAN_LINES)
+        paragraphs.insert(2, noise)
+        safe_print(f"🌫️ Applied Emotional Noise: '{noise}'")
+
+    text = "\n\n".join(paragraphs)
+
+    # 3. INTERRUPTED THINKING (20% chance)
+    if random.random() < 0.20:
+        text += "\n\n" + random.choice(TRAILING_LINES)
+        safe_print("🌫️ Applied Trailing Thought")
+
+    # 4. CAREER FATIGUE (15% chance)
+    if random.random() < 0.15:
+        text += "\n\n" + random.choice(FATIGUE_LINES)
+        safe_print("🌫️ Applied Career Fatigue")
+
+    # 5. CERTAINTY DEGRADATION (20% chance)
+    if random.random() < 0.20:
+        replacements = [("The signal was clear", "The signal felt clear"), ("It is common", "It seems common"), ("always", "often"), ("never", "rarely")]
+        for target, replacement in replacements:
+            if target in text:
+                text = text.replace(target, replacement, 1)
+                safe_print(f"🌫️ Applied Certainty Degradation: '{target}' -> '{replacement}'")
+                break
+
+    return text
+
+# =============================
+# 🔥 ATTENTION LOOP (Engagement)
+# =============================
+def apply_engagement_hooks(text):
+    if random.random() < 0.35:
+        hook = random.choice(ENGAGEMENT_HOOKS)
+        paragraphs = text.split('\n\n')
+        if len(paragraphs) > 2:
+            paragraphs.insert(-1, hook)
+            text = "\n\n".join(paragraphs)
+            safe_print(f"🔥 Applied Engagement Hook: '{hook}'")
+    return text
+
+def apply_belief_break(text):
+    # 🧨 BELIEF BREAKER (40% chance) - Cognitive Disruption
+    if random.random() < 0.40:
+        breaker = random.choice(BELIEF_BREAKERS)
+        paragraphs = text.split("\n\n")
+        # Insert early (after hook)
+        if len(paragraphs) > 2:
+            paragraphs.insert(1, breaker)
+            text = "\n\n".join(paragraphs)
+            safe_print(f"🧨 Applied Belief Break: '{breaker}'")
+    return text
+
+def apply_curiosity_gap(text):
+    if random.random() < 0.30:
+        ending = random.choice(CURIOSITY_ENDINGS)
+        text += "\n\n" + ending
+        safe_print(f"🧲 Applied Curiosity Gap: '{ending}'")
+    return text
+
 # 🔧 API RETRY HANDLER
 def generate_safe(client, prompt, model="gemini-flash-latest", temperature=0.7):
     max_retries = 3
     base_delay = 5
     config = types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature)
-
     for i in range(max_retries):
         try:
             response = client.models.generate_content(model=model, contents=prompt, config=config)
-
             try:
-                if not response.text:
-                    raise ValueError("Blocked by Safety Filter (Empty response)")
-            except Exception:
-                raise ValueError("Blocked by Safety Filter (Invalid response object)")
-
+                if not response.text: raise ValueError("Blocked by Safety Filter")
+            except Exception: raise ValueError("Blocked by Safety Filter")
             return response
-
         except Exception as e:
             error_msg = str(e).lower()
             wait_time = base_delay * (2 ** i)
-
             if "blocked" in error_msg or "safety" in error_msg:
-                safe_print(f"🛡️ Safety Filter Triggered. Retrying with higher temp... ({i+1}/{max_retries})")
+                safe_print(f"🛡️ Safety Filter. Retrying... ({i+1}/{max_retries})")
                 temperature = min(1.0, temperature + 0.2)
                 config = types.GenerateContentConfig(response_mime_type="application/json", temperature=temperature)
-
             elif "503" in error_msg or "overloaded" in error_msg:
-                safe_print(f"⚠️ API Overloaded. Retrying in {wait_time}s... ({i+1}/{max_retries})")
-
+                safe_print(f"⚠️ API Overloaded. Retrying... ({i+1}/{max_retries})")
             else:
                 safe_print(f"⚠️ API Error: {e}. Retrying...")
-
             time.sleep(wait_time)
-
     raise Exception("❌ API failed after max retries.")
 
 # 🔧 PRE-FLIGHT CHECK
-def structural_precheck(post):
-    if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
-        return False, "QA_STYLE_DETECTED"
+def structural_precheck(post, mode):
+    if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE): return False, "QA_STYLE_DETECTED"
+    if re.search(r"\b(You should|You must|Make sure|Ensure that)\b", post, re.IGNORECASE): return False, "TOO_PREACHY"
+    if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE): return False, "PRODUCT_NAMING_DETECTED"
 
-    if re.search(r"\b(You should|You must|Make sure|Ensure that)\b", post, re.IGNORECASE):
-        return False, "TOO_PREACHY"
-
-    if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
-        return False, "PRODUCT_NAMING_DETECTED"
+    if mode in ["CONFESSIONAL", "HYBRID"]:
+        has_confession = any(p.lower() in post.lower() for p in CONFESSION_PHRASES)
+        if not has_confession: return False, "LOW_CONFESSION_DENSITY"
     return True, None
 
-# 🔧 FORMATTING ENGINE (Fixed for Half-Post Bug)
+# 🔧 FORMATTING ENGINE
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
-
-    # 1. VISUAL HOOK: Isolate the first sentence if it's reasonably short
     match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
     if match:
         hook = match.group(1).strip()
         rest = match.group(3).strip()
-        if len(hook) < 150:
-            text = f"{hook}\n\n{rest}"
-
-    # 2. Simple Paragraph Spacing
-    # Aggressive splitting was causing data loss with complex punctuation.
-    # This safer logic just ensures clean separation.
+        if len(hook) < 150: text = f"{hook}\n\n{rest}"
     paragraphs = re.split(r'\n+', text)
     formatted_paragraphs = [p.strip() for p in paragraphs if p.strip()]
-
     return "\n\n".join(formatted_paragraphs)
 
 # =============================
@@ -364,21 +410,15 @@ def format_for_linkedin(text):
 def select_topic(state):
     last_topics = state.get("last_topics", [])
     last_axes = state.get("last_axes", [])
-
     categories = list(INTERVIEW_TOPICS.keys())
     category = random.choice(categories)
-
     subtopic_objects = INTERVIEW_TOPICS[category]
     valid_candidates = []
     for obj in subtopic_objects:
         is_fresh_topic = obj["topic"] not in last_topics
         is_fresh_axis = obj["axis"] not in last_axes[-2:]
-        if is_fresh_topic and is_fresh_axis:
-            valid_candidates.append(obj)
-
-    if not valid_candidates:
-        valid_candidates = subtopic_objects
-
+        if is_fresh_topic and is_fresh_axis: valid_candidates.append(obj)
+    if not valid_candidates: valid_candidates = subtopic_objects
     selected_obj = random.choice(valid_candidates)
     return category, selected_obj
 
@@ -396,7 +436,6 @@ def post_to_linkedin(urn, text):
     text = format_for_linkedin(text)
     url = "https://api.linkedin.com/rest/posts"
     full_text = text.strip() + FIXED_HASHTAGS
-
     payload = {
         "author": f"urn:li:person:{urn}",
         "commentary": full_text,
@@ -405,35 +444,21 @@ def post_to_linkedin(urn, text):
         "lifecycleState": "PUBLISHED",
         "isReshareDisabledByAuthor": False
     }
-
-    # Self-Healing Version Loop
     for version in LINKEDIN_VERSIONS_FALLBACK:
-        headers = {
-            "Authorization": f"Bearer {LINKEDIN_TOKEN}",
-            "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0",
-            "LinkedIn-Version": version
-        }
-
+        headers = {"Authorization": f"Bearer {LINKEDIN_TOKEN}", "Content-Type": "application/json", "X-Restli-Protocol-Version": "2.0.0", "LinkedIn-Version": version}
         try:
             resp = requests.post(url, headers=headers, json=payload, timeout=30)
-
             if resp.status_code == 201:
                 safe_print(f"✅ Published successfully (Version: {version})")
                 return True
-
-            # If 426 (Version Not Supported), loop to next version
             if resp.status_code == 426:
-                safe_print(f"⚠️ Version {version} not active. Retrying...")
+                safe_print(f"⚠️ Version {version} inactive. Retrying...")
                 continue
-
             safe_print(f"❌ LinkedIn Error [{resp.status_code}]: {resp.text}")
             return False
-
         except Exception as e:
             safe_print(f"❌ Network Error: {e}")
             return False
-
     safe_print("❌ All LinkedIn versions failed.")
     return False
 
@@ -442,31 +467,28 @@ def post_to_linkedin(urn, text):
 # =============================
 QUALITY_GATE_PROMPT = """
 Role: Principal Engineer / Hiring Bar Raiser.
-
 Review the post below.
-
 FAIL if:
-1. It feels like "Content Creation" (Tips, Tricks, Tutorials).
-2. It uses Q&A labels ("Question:", "Answer:").
-3. It gives advice ("You should...").
-4. It names specific products (WhatsApp, Uber, etc.).
-5. It lacks NARRATIVE TENSION (doesn't describe what was *missing* or *unsaid*).
-
+1. Content Creation style (Tips, Tricks).
+2. Q&A labels ("Question:", "Answer:").
+3. Advice ("You should...").
+4. Product names (WhatsApp, Uber).
+5. No NARRATIVE TENSION.
 PASS_9_PLUS only if:
-- It describes SYSTEM PRESSURE (long-lived connections, fan-out, churn).
-- It creates a moment of silence/judgment where a follow-up question was WITHHELD.
-
+- SYSTEM PRESSURE description.
+- Silence/judgment moment (Interview mode).
+- Vulnerability (Confessional mode).
 OUTPUT JSON ONLY:
 {
   "verdict": "PASS_9_PLUS" OR "FAIL",
-  "failure_axis": "QA_STYLE_DETECTED" | "TOO_PREACHY" | "MISSING_TENSION" | "MISSING_MIRROR" | "PRODUCT_NAMING_DETECTED" | "DESIGN_TUTORIAL_TONE",
+  "failure_axis": "QA_STYLE_DETECTED" | "TOO_PREACHY" | "MISSING_TENSION" | "MISSING_MIRROR" | "PRODUCT_NAMING_DETECTED" | "DESIGN_TUTORIAL_TONE" | "LOW_CONFESSION_DENSITY",
   "editor_note": "Reason"
 }
 """
 
-def build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail):
+def build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail, mode):
     opening_instr = f"Start with: {posture}"
-    if use_series_marker:
+    if use_series_marker and mode == "INTERVIEW_PATTERN":
         marker = random.choice(SERIES_MARKERS)
         opening_instr = f"Start EXPLICITLY with this phrase: '{marker}'"
 
@@ -475,16 +497,44 @@ def build_prompt(category, topic_obj, lens, posture, use_series_marker, use_earl
     signal = topic_obj["signal"]
     anchor = topic_obj["anchor"]
 
-    return f"""
-Role:
-Principal Backend Evaluator.
+    mode_block = ""
+    if mode == "CONFESSIONAL":
+        mode_block = """
+        CONFESSIONAL MODE (MANDATORY):
+        - Begin with personal ownership ("I assumed...", "I pushed this change...", "I was certain...").
+        - Describe a mistake YOU made regarding this topic.
+        - Include one emotional beat (unease, confidence, confusion, relief).
+        - Include one operational consequence (rollback, on-call, audit, customer impact).
+        - Write like you're admitting a mistake to peers.
+        """
+    elif mode == "INTERVIEW_PATTERN":
+        mode_block = """
+        INTERVIEW PATTERN MODE:
+        - Do NOT describe production incidents directly.
+        - Describe a repeated answer pattern you see in candidates.
+        - Use phrases like "Most candidates...", "Strong resumes usually stop here...", "I wait for...".
+        - INCLUDE ONE MOMENT OF HESITATION: "I almost interrupted", "I let them keep talking", "I waited".
+        - End with the Reveal Sentence.
+        """
+    elif mode == "HYBRID":
+        mode_block = """
+        HYBRID MODE:
+        - Start by observing a candidate's answer pattern.
+        - Halfway through, pivot: "This reminds me of a production incident I caused."
+        - Finish the post by briefly describing your own failure that creates your empathy for this gap.
+        """
 
+    return f"""
+Role: Principal Backend Evaluator / Senior Engineer.
 CONTEXT:
 - Topic: {subtopic}
 - Hidden Axis: {axis}
 - Interview Signal: {signal}
 - Lens: {lens}
 - Opening: {opening_instr}
+- MODE: {mode}
+
+{mode_block}
 
 CONSTRAINTS:
 1. JVM ONLY. No Node/Go/Rust.
@@ -495,18 +545,12 @@ CONSTRAINTS:
 6. MANDATORY: First sentence must be short (under 15 words) and arresting.
 
 PSYCHOLOGICAL RULES (MANDATORY):
-1. THE UNASKED QUESTION: Describe waiting for the candidate to mention something critical—and they don't.
+1. THE UNASKED QUESTION (Interview Mode): Describe waiting for the candidate to mention something critical—and they don't.
 2. DELIBERATE SILENCE: Include a moment where you *choose not to ask* the follow-up because the signal is clear.
 3. THE MIRROR LINE: Include a sentence that implicates the reader (e.g., "Most strong resumes stop here" or "It sounds correct until you've lived it").
 
-TASK:
-Write a first-person observation of a candidate's answer pattern.
-1. Describe the pattern indirectly.
-2. Describe your visceral internal reaction.
-3. Use the 'Hidden Axis' to focus on pressure points.
-
-NARRATIVE ANCHOR (Must appear in spirit):
-"{anchor}"
+TASK: Write a first-person LinkedIn post based on the MODE selected.
+NARRATIVE ANCHOR: "{anchor}"
 
 [[EDITOR_FEEDBACK_SLOT]]
 
@@ -517,40 +561,37 @@ FORMATTING:
 - USE DOUBLE NEWLINES between paragraphs.
 - Keep paragraphs short (2-3 sentences max).
 
-OUTPUT JSON ONLY:
-{{
-  "post_text": "..."
-}}
+OUTPUT JSON ONLY: {{ "post_text": "..." }}
 """
 
 # =============================
 # MUTATION LOOP
 # =============================
-def generate_with_review(client, base_prompt, context_tuple):
+def generate_with_review(client, base_prompt, context_tuple, mode):
     category, subtopic = context_tuple
     last_content = None
     feedback_text = ""
     previous_axis = None
-
     MAX_ATTEMPTS = 4
 
     for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
         temp = 0.7 if attempt == 0 else 0.4
-
         current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
-
         try:
             response = generate_safe(client, current_prompt, temperature=temp)
             content = json.loads(response.text)
-
-            # This will RAISE ValueError if forbidden term found
             post = clean_text(content.get("post_text", ""))
+
+            # ✅ UNRESOLVED ENDING (15% chance)
+            if random.random() < 0.15:
+                if post.endswith("."): post = post[:-1]
+                safe_print("🌫️ Applied Unresolved Ending")
 
             content["post_text"] = post
             last_content = content
 
-            passed_structure, failure_axis = structural_precheck(post)
+            passed_structure, failure_axis = structural_precheck(post, mode)
             if not passed_structure:
                 safe_print(f"❌ Pre-flight Check Failed: {failure_axis}")
                 if attempt < MAX_ATTEMPTS - 1:
@@ -559,53 +600,35 @@ def generate_with_review(client, base_prompt, context_tuple):
                     continue
 
             judge_resp = generate_safe(client, f"{QUALITY_GATE_PROMPT}\n\nPOST:\n{post}", temperature=0.1)
-            raw_judge = judge_resp.text.replace("```json", "").replace("```", "").strip()
-            verdict_data = json.loads(raw_judge)
-
+            verdict_data = json.loads(judge_resp.text.replace("```json", "").replace("```", "").strip())
             safe_print(f"🕵️ Verdict: {verdict_data.get('verdict')} | Axis: {verdict_data.get('failure_axis')}")
 
-            if verdict_data.get("verdict") == "PASS_9_PLUS":
-                return content
+            if verdict_data.get("verdict") == "PASS_9_PLUS": return content
 
             axis = verdict_data.get("failure_axis", "TOO_PREACHY")
-            if axis == previous_axis:
-                safe_print("⚠️ Same failure axis repeated. Stopping mutation.")
-                return content
-
+            if axis == previous_axis: return content
             previous_axis = axis
             mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["TOO_PREACHY"])
-
-            safe_print(f"💉 Injecting Mutation: {axis}")
             feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite applying this fix."
 
         except ValueError as ve:
-            # Handle forbidden terms by treating them as a "mutation" failure
             safe_print(f"🚫 {ve}")
             if attempt < MAX_ATTEMPTS - 1:
                 feedback_text = f"\n--- CRITICAL FEEDBACK ---\n{PROMPT_MUTATIONS['FORBIDDEN_TERM']}"
                 continue
-            else:
-                # If last attempt failed due to forbidden term, we cannot publish it
-                safe_print("❌ Failed due to Forbidden Term on last attempt.")
-                sys.exit(1)
+            else: sys.exit(1)
         except Exception as e:
             safe_print(f"⚠️ Unexpected Error: {e}")
             continue
 
-    safe_print("⚠️ Quality Gate failed after max attempts. Soft landing initiated.")
-
-    if last_content:
-        log_failure(last_content["post_text"], previous_axis, verdict_data.get("editor_note", "Max attempts"), category, subtopic)
-        return last_content
-
-    safe_print("❌ Critical Failure: No content generated.")
+    if last_content: return last_content
     sys.exit(1)
 
 # =============================
 # MAIN AUTOMATION
 # =============================
 def run_automation(dry_run=False):
-    # BACKWARD COMPATIBILITY: Force 'last_axes' if missing
+    # BACKWARD COMPATIBILITY
     state = load_json(STATE_FILE, {"last_topics": [], "last_categories": [], "last_axes": []})
     state.setdefault("last_axes", [])
     state.setdefault("last_topics", [])
@@ -613,7 +636,9 @@ def run_automation(dry_run=False):
 
     client = genai.Client(api_key=GEMINI_KEY)
 
+    # 1. SELECT TOPIC & MODE
     category, topic_obj = select_topic(state)
+    mode = select_writing_mode()
     subtopic = topic_obj["topic"]
     axis = topic_obj["axis"]
 
@@ -626,13 +651,19 @@ def run_automation(dry_run=False):
     print(f"📝 TOPIC:    {category.upper()}")
     print(f"🔍 PATTERN:  {subtopic}")
     print(f"⚖️ AXIS:     {axis}")
+    print(f"🎭 MODE:     {mode}")
     print("="*50 + "\n")
 
-    base_prompt = build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail)
-
-    final_content = generate_with_review(client, base_prompt, (category, subtopic))
+    base_prompt = build_prompt(category, topic_obj, lens, posture, use_series_marker, use_early_fail, mode)
+    final_content = generate_with_review(client, base_prompt, (category, subtopic), mode)
     post_text = final_content["post_text"]
-    post_text = format_for_linkedin(post_text)
+
+    # APPLY LAYERS
+    post_text = apply_human_drift(post_text)      # Identity Loop
+    post_text = apply_engagement_hooks(post_text) # Attention Loop
+    post_text = apply_belief_break(post_text)     # Belief Disruption (New)
+    post_text = apply_curiosity_gap(post_text)    # Attention Loop
+    post_text = format_for_linkedin(post_text)    # Formatting
 
     safe_print("✅ Content Generated:")
     safe_print(post_text)
@@ -640,7 +671,7 @@ def run_automation(dry_run=False):
     if dry_run:
         print("\n[DRY RUN MODE]")
         history = load_json(HISTORY_FILE, [])
-        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "dry-run", "text": post_text})
+        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "dry-run", "mode": mode, "text": post_text})
         save_json(HISTORY_FILE, history[-50:])
         return
 
@@ -651,8 +682,6 @@ def run_automation(dry_run=False):
 
     print("\n🚀 Publishing...")
     if post_to_linkedin(urn, post_text):
-        safe_print("✅ Published.")
-
         state["last_topics"].append(subtopic)
         state["last_topics"] = state["last_topics"][-15:]
         state["last_categories"].append(category)
@@ -660,9 +689,8 @@ def run_automation(dry_run=False):
         state["last_axes"].append(axis)
         state["last_axes"] = state["last_axes"][-2:]
         save_json(STATE_FILE, state)
-
         history = load_json(HISTORY_FILE, [])
-        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "published", "text": post_text})
+        history.append({"date": time.strftime("%Y-%m-%d"), "topic": f"{category}:{subtopic}", "status": "published", "mode": mode, "text": post_text})
         save_json(HISTORY_FILE, history[-50:])
     else:
         safe_print("❌ Publish failed.")
