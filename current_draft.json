@@ -1,7 +1,0 @@
-{
-  "post_text": "I thought I was a JVM wizard.\n\nI tuned the heap to 85% of the container limit and walked away. \ud83e\uddd9\u200d\u2642\ufe0f\n\nI launched the service with supreme confidence. \"Why waste RAM?\" I told the junior dev. Then the Friday rush hit. Suddenly, my dashboard turned blood red. Pods weren't throwing Java exceptions; they were vanishing. Kubernetes was SIGKILLing them before they could even log a protest. I stared at the \"OOMKilled\" status in disbelief. My heap metrics showed 20% headroom, but the container was hitting its hard limit.\n\nI had ignored the Metaspace, the thread stacks, and the overhead of the native libraries. I treated the container like a bare-metal server where I owned the world. In reality, I had suffocated the process by leaving no room for it to breathe outside the heap. The silence of a SIGKILL is much louder than any stack trace. \ud83d\udcc9\n\nWhat I learned:\n\nThe JVM is more than just the heap, and Kubernetes is a cold, efficient executioner when you ignore off-heap overhead.",
-  "lesson_extracted": "The JVM requires significant off-heap memory for Metaspace and threads, and ignoring this leads to silent Kubernetes OOMKills even when the heap is healthy.",
-  "meta_mode": "FAILURE",
-  "meta_theme": "THE CRASH",
-  "meta_tech": "Kubernetes OOMs"
-}
