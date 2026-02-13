@@ -6,15 +6,16 @@
     "Indexes accelerating reads while killing writes",
     "Hot partitions created by innocent keys",
     "Distributed locks: The Clock Skew problem",
-    "The myth of 'Exactly Once' in distributed systems"
+    "The myth of 'Exactly Once' in distributed systems",
+    "Eventual consistency leaking into user workflows"
   ],
   "last_categories": [
-    "nosql_misuse",
     "redis",
-    "kafka"
+    "kafka",
+    "nosql_misuse"
   ],
   "last_axes": [
-    "Ordering Guarantees Axis",
-    "Human Assumption Axis"
+    "Human Assumption Axis",
+    "State Ownership Axis"
   ]
 }
