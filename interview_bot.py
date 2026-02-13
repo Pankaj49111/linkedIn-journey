@@ -25,14 +25,21 @@ HISTORY_FILE = "interview_history.json"
 STATE_FILE = "interview_state.json"
 FAILED_DRAFTS_FILE = "interview_failed_drafts.json"
 
-# Prioritized list of API versions to try (Newest -> Oldest)
 LINKEDIN_VERSIONS_FALLBACK = [
     "202511", "202510", "202509", "202508", "202507", "202506",
     "202505", "202504", "202503", "202502", "202501",
-    "202412", "202411", "202410", "202409", "202408", "202407", "202406"
+    "202412", "202411", "202410", "202409", "202408", "202407", "202406", "202401"
 ]
 
 FIXED_HASHTAGS = "\n\n#backend #engineering #interviews #java #systemsdesign #jvm"
+
+# =============================
+# 🛡️ JVM FIREWALL
+# =============================
+FORBIDDEN_TECH_TERMS = [
+    "node", "nodejs", "event loop", "goroutine", "golang", " go ",
+    "python", "gil", "rust", ".net", "c#", "async await"
+]
 
 # =============================
 # 🧠 MUTATION ENGINE
@@ -75,7 +82,7 @@ PROMPT_MUTATIONS = {
     Identify the specific pressure point (e.g., reconnect storms) where the candidate's model collapses.
     """,
     "FORBIDDEN_TERM": """
-    CRITICAL FAILURE: You used a forbidden term (Node, Python, Go, etc.).
+    CRITICAL FAILURE: You used a forbidden term (Node, Go, Python, etc.).
     This account is strictly JVM/Backend engineering.
     Rewrite entirely using JVM terminology (Thread Pools, GC, Heap) or generic systems terms.
     """
@@ -213,11 +220,6 @@ INTERVIEW_TOPICS = {
     ]
 }
 
-FORBIDDEN_TECH_TERMS = [
-    "node", "nodejs", "event loop", "goroutine", "golang",
-    "python", "gil", "rust", ".net", "c#", "async await"
-]
-
 ANSWER_LENSES = [
     "Failure Mode (How it breaks)",
     "Operational Cost (How it wakes us up)",
@@ -263,9 +265,9 @@ def clean_text(text):
 
     # 🚨 HARD BLOCK: Raise error if forbidden term is found
     for term in FORBIDDEN_TECH_TERMS:
-        if re.search(rf"\b{re.escape(term)}\b", text, re.IGNORECASE):
+        if re.search(rf"\b{re.escape(term.strip())}\b", text, re.IGNORECASE):
             # Exception triggers the mutation loop to retry
-            raise ValueError(f"Forbidden term detected: '{term}'")
+            raise ValueError(f"Forbidden term detected: '{term.strip()}'")
 
     text = re.sub(r'(?i)^(Hook|Lesson|Insight|Signal|Trap|Reality|Common Answer|Where it breaks|Where it holds|Context|Observation):', '', text, flags=re.MULTILINE)
     return text.strip()
@@ -329,16 +331,18 @@ def structural_precheck(post):
     if re.search(r"\b(Question|Answer|Candidate):\s", post, re.IGNORECASE):
         return False, "QA_STYLE_DETECTED"
 
-    if re.search(r"\b(You should|You must)\b", post, re.IGNORECASE):
+    if re.search(r"\b(You should|You must|Make sure|Ensure that)\b", post, re.IGNORECASE):
         return False, "TOO_PREACHY"
 
     if re.search(r"\b(WhatsApp|Uber|Netflix|Twitter|Facebook|Instagram)\b", post, re.IGNORECASE):
         return False, "PRODUCT_NAMING_DETECTED"
     return True, None
 
-# 🔧 FORMATTING ENGINE
+# 🔧 FORMATTING ENGINE (Fixed for Half-Post Bug)
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
+
+    # 1. VISUAL HOOK: Isolate the first sentence if it's reasonably short
     match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
     if match:
         hook = match.group(1).strip()
@@ -346,32 +350,13 @@ def format_for_linkedin(text):
         if len(hook) < 150:
             text = f"{hook}\n\n{rest}"
 
-    raw_paragraphs = re.split(r'\n+', text)
-    final_paragraphs = []
+    # 2. Simple Paragraph Spacing
+    # Aggressive splitting was causing data loss with complex punctuation.
+    # This safer logic just ensures clean separation.
+    paragraphs = re.split(r'\n+', text)
+    formatted_paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
-    for p in raw_paragraphs:
-        p = p.strip()
-        if not p: continue
-        if p == final_paragraphs[0] if final_paragraphs else False:
-            final_paragraphs.append(p)
-            continue
-
-        if len(p) > 200 or p.count(".") > 2:
-            sentences = re.split(r'(?<=[.!?]) +', p)
-            chunk = ""
-            count = 0
-            for s in sentences:
-                chunk += s + " "
-                count += 1
-                if count >= 2:
-                    final_paragraphs.append(chunk.strip())
-                    chunk = ""
-                    count = 0
-            if chunk: final_paragraphs.append(chunk.strip())
-        else:
-            final_paragraphs.append(p)
-
-    return "\n\n".join(final_paragraphs)
+    return "\n\n".join(formatted_paragraphs)
 
 # =============================
 # LOGIC
@@ -379,8 +364,10 @@ def format_for_linkedin(text):
 def select_topic(state):
     last_topics = state.get("last_topics", [])
     last_axes = state.get("last_axes", [])
+
     categories = list(INTERVIEW_TOPICS.keys())
     category = random.choice(categories)
+
     subtopic_objects = INTERVIEW_TOPICS[category]
     valid_candidates = []
     for obj in subtopic_objects:
@@ -388,7 +375,10 @@ def select_topic(state):
         is_fresh_axis = obj["axis"] not in last_axes[-2:]
         if is_fresh_topic and is_fresh_axis:
             valid_candidates.append(obj)
-    if not valid_candidates: valid_candidates = subtopic_objects
+
+    if not valid_candidates:
+        valid_candidates = subtopic_objects
+
     selected_obj = random.choice(valid_candidates)
     return category, selected_obj
 
@@ -416,7 +406,7 @@ def post_to_linkedin(urn, text):
         "isReshareDisabledByAuthor": False
     }
 
-    # Try versions from newest to oldest
+    # Self-Healing Version Loop
     for version in LINKEDIN_VERSIONS_FALLBACK:
         headers = {
             "Authorization": f"Bearer {LINKEDIN_TOKEN}",
@@ -547,6 +537,7 @@ def generate_with_review(client, base_prompt, context_tuple):
     for attempt in range(MAX_ATTEMPTS):
         safe_print(f"🔄 Generation Attempt {attempt + 1}")
         temp = 0.7 if attempt == 0 else 0.4
+
         current_prompt = base_prompt.replace("[[EDITOR_FEEDBACK_SLOT]]", feedback_text)
 
         try:
@@ -583,6 +574,7 @@ def generate_with_review(client, base_prompt, context_tuple):
 
             previous_axis = axis
             mutation = PROMPT_MUTATIONS.get(axis, PROMPT_MUTATIONS["TOO_PREACHY"])
+
             safe_print(f"💉 Injecting Mutation: {axis}")
             feedback_text = f"\n--- EDITOR FEEDBACK ---\n{mutation}\nTASK: Rewrite applying this fix."
 
@@ -613,6 +605,7 @@ def generate_with_review(client, base_prompt, context_tuple):
 # MAIN AUTOMATION
 # =============================
 def run_automation(dry_run=False):
+    # BACKWARD COMPATIBILITY: Force 'last_axes' if missing
     state = load_json(STATE_FILE, {"last_topics": [], "last_categories": [], "last_axes": []})
     state.setdefault("last_axes", [])
     state.setdefault("last_topics", [])
@@ -658,6 +651,8 @@ def run_automation(dry_run=False):
 
     print("\n🚀 Publishing...")
     if post_to_linkedin(urn, post_text):
+        safe_print("✅ Published.")
+
         state["last_topics"].append(subtopic)
         state["last_topics"] = state["last_topics"][-15:]
         state["last_categories"].append(category)
