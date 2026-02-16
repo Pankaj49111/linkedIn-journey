@@ -1,0 +1,9 @@
+[
+  {
+    "date": "2026-02-16",
+    "topic": "kafka:Consumer lag: Latency vs Throughput trade-off",
+    "status": "published",
+    "mode": "INTERVIEW_PATTERN",
+    "text": "We often assume lag is a resource problem, but it is a policy failure.\n\nMost candidates walk through the standard JVM thread pool tuning. They discuss ThreadPoolExecutor configurations, core count adjustments, or the transition to virtual threads to maximize throughput.\n\nIt sounds correct until you have lived it. Strong resumes usually stop here, focusing on the mechanics of processing faster rather than the physics of the queue.\n\nNothing timed out. Everything was late.\n\nI let them keep talking about maximizing worker efficiency. I almost interrupted when they suggested increasing the internal buffer size to absorb traffic spikes.\n\nI waited for them to mention the producer. They focused on the latency of the individual task, ignoring the upstream pressure that builds when the consumer cannot keep up.\n\nI chose not to ask the follow-up about flow control. The signal was clear when they treated the queue as a buffer instead of a pressure valve.\n\nThis is usually where the discussion stops being about throughput and starts revealing how someone reasons about systemic instability"
+  }
+]
