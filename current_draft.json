@@ -1,7 +1,0 @@
-{
-  "post_text": "Stop treating Redis like a temporary scratchpad for your database.\n\nYou are killing your performance with unnecessary synchronization logic. Redis is a primary database, not just a cache. Most engineers get this wrong by treating it as an optional sidecar. They build fragile cache-aside patterns that invite race conditions and data inconsistency. In reality, Redis\u2019s native data structures are robust enough to be your source of truth for high-throughput state. I once moved a massive session management system entirely out of Postgres and into Redis. We deleted 500 lines of synchronization boilerplate and slashed P99 latency by 120ms. Persistence is a solved problem; stop being terrified of AOF and RDB snapshots. If your entire system collapses the moment Redis goes down, it was never just a cache to begin with. Stop lying to yourself and treat it like the database it actually is. \u26a1",
-  "lesson_extracted": "Treating Redis as a secondary cache instead of a primary data store creates unnecessary complexity and architectural fragility.",
-  "meta_mode": "CONTRARIAN",
-  "meta_theme": "N/A",
-  "meta_tech": "Redis"
-}
