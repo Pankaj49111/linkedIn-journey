@@ -1,7 +1,0 @@
-{
-  "post_text": "I insisted on strict schema validation for our internal microservices when we were still small.\n\nWhile the rest of the team pushed for \"flexible\" JSON blobs to maintain velocity, I chose Protobuf and a central schema registry. \ud83d\udee1\ufe0f\n\nNothing crashed. Everything degraded.\n\nAt the time, it felt unnecessarily rigid. The frontend leads hated the extra build step, and the \"move fast\" advocates argued that a shared registry created a bottleneck for simple feature additions. They wanted the freedom to iterate without a formal contract review for every minor field change. It was a conservative choice that felt like a speed bump in a race.\n\nTwo years later, our engineering department tripled in size. A developer in a different time zone pushed a breaking change to the core billing service, renaming a critical field. Because of the registry, the CI pipeline blocked the merge immediately. It caught the mismatch before a single byte reached the staging environment. No production outage occurred, and no one had to stay up until 3 AM debugging a \"null\" value.\n\nWe didn't need a post-mortem or a hero to save the day. The boring choice I made years prior simply did its job in silence. \u2615\n\nWhat I learned:\n\nBoring contracts prevent exciting failures.",
-  "lesson_extracted": "Boring contracts prevent exciting failures.",
-  "meta_mode": "QUIET_WIN",
-  "meta_theme": "N/A",
-  "meta_tech": "API Contracts"
-}
