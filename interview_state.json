@@ -1,11 +1,14 @@
 {
   "last_topics": [
-    "Consumer lag: Latency vs Throughput trade-off"
+    "Consumer lag: Latency vs Throughput trade-off",
+    "Dual writes without atomicity"
   ],
   "last_categories": [
-    "kafka"
+    "kafka",
+    "derived_stores"
   ],
   "last_axes": [
-    "Backpressure Axis"
+    "Backpressure Axis",
+    "State Ownership Axis"
   ]
 }
