@@ -1,7 +1,0 @@
-{
-  "post_text": "Cache invalidation is the silent killer of distributed consistency.\n\nYou don't have a caching problem; you have a distributed state problem. \u26a1\n\nStop treating TTL as a strategy; it\u2019s a safety net for when your event-driven invalidation inevitably fails.\n\n- Use versioned keys or \"generational\" namespaces to bypass the \"delete-then-read\" race condition where a stale database read repopulates the cache before the write transaction fully commits.\n\n- Implement \"Lease\" or \"Promise\" patterns in high-concurrency environments to prevent cache stampedes and thundering herds when a hot key expires under heavy load.\n\n- Prefer explicit invalidation via Change Data Capture (CDC) over application-level logic to ensure the cache reflects the actual database state, not just the last successful API call. \ud83d\udee0\ufe0f",
-  "lesson_extracted": "Senior engineers treat cache invalidation as a distributed systems challenge rather than a simple key-value deletion, prioritizing architectural patterns like CDC and versioning to ensure that the cache remains a strictly consistent and reliable derivative of the primary data source.",
-  "meta_mode": "TACTICAL",
-  "meta_theme": "N/A",
-  "meta_tech": "Cache Invalidation"
-}

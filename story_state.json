@@ -1,17 +1,19 @@
 {
   "act_index": 0,
-  "episode": 3,
+  "episode": 4,
   "previous_lessons": [
     "Boring contracts prevent exciting failures."
   ],
   "last_themes": [],
   "last_tech": [
     "Redis",
-    "API Contracts"
+    "API Contracts",
+    "Cache Invalidation"
   ],
   "last_spines": [],
   "last_modes": [
     "CONTRARIAN",
-    "QUIET_WIN"
+    "QUIET_WIN",
+    "TACTICAL"
   ]
 }
