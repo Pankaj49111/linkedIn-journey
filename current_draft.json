@@ -1,0 +1,7 @@
+{
+  "post_text": "I thought I was cleaning up the mess.\n\nInstead, I became the mess. I replaced a decade-old EJB identity module with a clean Spring Boot service, mapping the database schema from scratch to avoid the 'legacy rot.'\n\n'Clean slate,' I told the team. I pushed to production at 2 PM. By 2:05 PM, the authentication service flatlined. Threads hit the ceiling, but my logs were silent. I realized the legacy system wasn't just code; it was a delicate ecosystem of undocumented database triggers and side-effects. My new ORM bypassed a critical stored procedure that managed session state, causing a massive deadlock in the legacy reporting engine. I hadn't migrated a service; I had lobotomized a living organism. I spent the night rolling back while the CTO watched. \ud83d\udcc9\n\nAlmost nobody asks what happens next.\n\nWhat I learned:\n\nYou do not own a legacy system until you map every hidden side effect, because the code is only half the truth.",
+  "lesson_extracted": "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
+  "meta_mode": "FAILURE",
+  "meta_theme": "THE OWNERSHIP GAP",
+  "meta_tech": "Legacy Migrations"
+}
