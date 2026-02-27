@@ -2,15 +2,16 @@
   "last_topics": [
     "Consumer lag: Latency vs Throughput trade-off",
     "Dual writes without atomicity",
-    "JVM Warm-up: Why autoscaling is slow"
+    "JVM Warm-up: Why autoscaling is slow",
+    "Ordering guarantees vs Consumer Group rebalances"
   ],
   "last_categories": [
-    "kafka",
     "derived_stores",
-    "jvm_mechanics"
+    "jvm_mechanics",
+    "kafka"
   ],
   "last_axes": [
-    "State Ownership Axis",
-    "Initialization & Warm-up Axis"
+    "Initialization & Warm-up Axis",
+    "Ordering Guarantees Axis"
   ]
 }
