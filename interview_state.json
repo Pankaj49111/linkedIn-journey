@@ -3,15 +3,16 @@
     "Consumer lag: Latency vs Throughput trade-off",
     "Dual writes without atomicity",
     "JVM Warm-up: Why autoscaling is slow",
-    "Ordering guarantees vs Consumer Group rebalances"
+    "Ordering guarantees vs Consumer Group rebalances",
+    "Search indexes lagging behind truth"
   ],
   "last_categories": [
-    "derived_stores",
     "jvm_mechanics",
-    "kafka"
+    "kafka",
+    "derived_stores"
   ],
   "last_axes": [
-    "Initialization & Warm-up Axis",
-    "Ordering Guarantees Axis"
+    "Ordering Guarantees Axis",
+    "Visibility vs Reality Axis"
   ]
 }
