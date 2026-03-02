@@ -1,0 +1,7 @@
+{
+  "post_text": "SLOs based on averages are professional negligence.\n\nYour dashboard is lying to you.\n\nThe architecture was fine. The assumptions weren\u2019t.\n\nMost engineers treat availability as a global aggregate, chasing nines while ignoring the \"silent\" minority experiencing total failure. They optimize for the median user, forgetting that a system is only as reliable as its most neglected shard. This is the same hubris that leads us to trust a high-level database schema without checking the underlying storage engine's undocumented behavior.\n\nI once watched a monitoring suite glow green with 99.9% success while a specific database partition was completely dark. The aggregate SLI masked the fact that five hundred enterprise accounts were effectively locked out for six hours. We were celebrating \"stability\" while the business was hemorrhaging trust in a blind spot we chose not to measure. \ud83d\udcc9\n\nIf your SLO doesn't hurt when it stays green, you aren't measuring reliability; you're measuring your own comfort. \ud83d\uded1",
+  "lesson_extracted": "Aggregated SLIs create a false sense of security by masking catastrophic failures affecting specific user segments or shards.",
+  "meta_mode": "CONTRARIAN",
+  "meta_theme": "N/A",
+  "meta_tech": "SLIs/SLOs"
+}
