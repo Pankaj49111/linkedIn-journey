@@ -4,15 +4,16 @@
     "Dual writes without atomicity",
     "JVM Warm-up: Why autoscaling is slow",
     "Ordering guarantees vs Consumer Group rebalances",
-    "Search indexes lagging behind truth"
+    "Search indexes lagging behind truth",
+    "Using Redis as a primary database (The Persistence Trap)"
   ],
   "last_categories": [
-    "jvm_mechanics",
     "kafka",
-    "derived_stores"
+    "derived_stores",
+    "redis"
   ],
   "last_axes": [
-    "Ordering Guarantees Axis",
-    "Visibility vs Reality Axis"
+    "Visibility vs Reality Axis",
+    "State Ownership Axis"
   ]
 }
