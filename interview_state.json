@@ -5,15 +5,16 @@
     "JVM Warm-up: Why autoscaling is slow",
     "Ordering guarantees vs Consumer Group rebalances",
     "Search indexes lagging behind truth",
-    "Using Redis as a primary database (The Persistence Trap)"
+    "Using Redis as a primary database (The Persistence Trap)",
+    "Hot partitions created by innocent keys"
   ],
   "last_categories": [
-    "kafka",
     "derived_stores",
-    "redis"
+    "redis",
+    "nosql_misuse"
   ],
   "last_axes": [
-    "Visibility vs Reality Axis",
-    "State Ownership Axis"
+    "State Ownership Axis",
+    "Backpressure Axis"
   ]
 }
