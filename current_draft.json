@@ -1,7 +1,0 @@
-{
-  "post_text": "I set a hard cap on our HikariCP pool size when the team wanted \"infinite\" scaling.\n\nWe were building a high-throughput payment gateway, and the pressure to over-provision was immense.\n\nSomething felt off.\n\nI chose a fixed, small pool size based on the database's actual CPU core count rather than the number of application nodes. I refused to let the pool grow dynamically. At the time, this felt regressive. Developers complained about ConnectionTimeoutExceptions during local load tests, arguing that more connections equaled more speed. They saw the limit as a bottleneck, not a safeguard.\n\nThree years later, a botched deployment triggered a massive retry storm. While the application nodes spiked to 100% CPU, the Postgres primary stayed stable at 40% utilization. The hard limit acted as a natural circuit breaker, preventing a total database saturation that would have taken hours to recover from. \ud83d\udee1\ufe0f\n\nWe didn't need a complex service mesh or fancy rate limiting that day. We just needed a boring configuration file that respected the physical reality of our hardware.\n\nWhat I learned:\n\nA constrained pool creates a predictable system.",
-  "lesson_extracted": "A constrained pool creates a predictable system.",
-  "meta_mode": "QUIET_WIN",
-  "meta_theme": "N/A",
-  "meta_tech": "Connection Pooling"
-}
