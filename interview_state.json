@@ -6,15 +6,16 @@
     "Ordering guarantees vs Consumer Group rebalances",
     "Search indexes lagging behind truth",
     "Using Redis as a primary database (The Persistence Trap)",
-    "Hot partitions created by innocent keys"
+    "Hot partitions created by innocent keys",
+    "Indexes accelerating reads while killing writes"
   ],
   "last_categories": [
-    "derived_stores",
     "redis",
-    "nosql_misuse"
+    "nosql_misuse",
+    "relational_db"
   ],
   "last_axes": [
-    "State Ownership Axis",
-    "Backpressure Axis"
+    "Backpressure Axis",
+    "Recovery Cost Axis"
   ]
 }
