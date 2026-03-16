@@ -7,15 +7,16 @@
     "Search indexes lagging behind truth",
     "Using Redis as a primary database (The Persistence Trap)",
     "Hot partitions created by innocent keys",
-    "Indexes accelerating reads while killing writes"
+    "Indexes accelerating reads while killing writes",
+    "Backfills causing production brownouts"
   ],
   "last_categories": [
-    "redis",
     "nosql_misuse",
-    "relational_db"
+    "relational_db",
+    "derived_stores"
   ],
   "last_axes": [
-    "Backpressure Axis",
-    "Recovery Cost Axis"
+    "Recovery Cost Axis",
+    "Backpressure Axis"
   ]
 }
