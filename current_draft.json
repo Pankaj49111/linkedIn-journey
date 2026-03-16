@@ -1,0 +1,7 @@
+{
+  "post_text": "Average latency is a lie that hides your worst outages.\n\nP99s tell the truth, but even they mask the \"coordinated omission\" problem. \ud83d\udcc9\n\nStop tracking averages; a 30-second timeout buried in 1,000 sub-millisecond requests presents as a healthy 30ms average, silencing alarms for your most frustrated users.\n\nAccount for coordinated omission where monitoring probes wait for a response before sending the next request, which artificially deflates reported latency during system saturation.\n\nTreat throughput without error-rate segmentation as a vanity metric; high RPS on a 500-error loop is just a very efficient way to fail, yet it often triggers \"healthy\" scaling events in naive autoscalers. \u2699\ufe0f\n\nThat part stuck with me.",
+  "lesson_extracted": "Relying on averages and unsegmented throughput masks systemic failures and saturation-induced measurement bias.",
+  "meta_mode": "TACTICAL",
+  "meta_theme": "N/A",
+  "meta_tech": "Misleading Metrics"
+}
