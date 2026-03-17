@@ -1,6 +1,6 @@
 {
   "act_index": 0,
-  "episode": 7,
+  "episode": 8,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -10,18 +10,18 @@
     "THE OWNERSHIP GAP"
   ],
   "last_tech": [
-    "API Contracts",
     "Cache Invalidation",
     "Legacy Migrations",
     "SLIs/SLOs",
-    "Connection Pooling"
+    "Connection Pooling",
+    "Misleading Metrics"
   ],
   "last_spines": [],
   "last_modes": [
-    "QUIET_WIN",
     "TACTICAL",
     "FAILURE",
     "CONTRARIAN",
-    "QUIET_WIN"
+    "QUIET_WIN",
+    "TACTICAL"
   ]
 }
