@@ -1,7 +1,0 @@
-{
-  "post_text": "I believed the JVM was the king of its castle.\n\nI was wrong; it was just a tenant with a very strict landlord. \ud83c\udff0\n\nI configured our new microservice with a 4GB RAM limit in Kubernetes. To maximize performance, I set the -Xmx heap to 3.8GB, assuming the non-heap overhead was negligible. For weeks, the system purred. Then, we integrated a library utilizing heavy Direct ByteBuffers for network I/O. During a Friday peak, the service didn't throw a single Java exception. No logs, no stack traces\u2014just a cold, silent death. Kubernetes issued an OOMKilled signal and reaped the pod instantly.\n\nI spent hours debugging the heap, but the heap was healthy. The 'Silent Victory' belonged to the kernel. I forgot that the JVM needs breathing room for Metaspace, thread stacks, and native memory. By pinning the heap so close to the limit, I left no room for the engine itself to breathe. \ud83d\udc80\n\nWhat I learned:\n\nA container limit is a hard ceiling for the entire process, not just your heap; always leave a 25% buffer for the JVM's internal tax.",
-  "lesson_extracted": "A container limit is a hard ceiling for the entire process, not just your heap; always leave a 25% buffer for the JVM's internal tax.",
-  "meta_mode": "FAILURE",
-  "meta_theme": "THE SILENT VICTORY",
-  "meta_tech": "Kubernetes OOMs"
-}
