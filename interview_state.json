@@ -8,15 +8,16 @@
     "Using Redis as a primary database (The Persistence Trap)",
     "Hot partitions created by innocent keys",
     "Indexes accelerating reads while killing writes",
-    "Backfills causing production brownouts"
+    "Backfills causing production brownouts",
+    "Distributed locks: The Clock Skew problem"
   ],
   "last_categories": [
-    "nosql_misuse",
     "relational_db",
-    "derived_stores"
+    "derived_stores",
+    "redis"
   ],
   "last_axes": [
-    "Recovery Cost Axis",
-    "Backpressure Axis"
+    "Backpressure Axis",
+    "Ordering Guarantees Axis"
   ]
 }
