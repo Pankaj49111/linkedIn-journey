@@ -9,15 +9,16 @@
     "Hot partitions created by innocent keys",
     "Indexes accelerating reads while killing writes",
     "Backfills causing production brownouts",
-    "Distributed locks: The Clock Skew problem"
+    "Distributed locks: The Clock Skew problem",
+    "Eventual consistency leaking into user workflows"
   ],
   "last_categories": [
-    "relational_db",
     "derived_stores",
-    "redis"
+    "redis",
+    "nosql_misuse"
   ],
   "last_axes": [
-    "Backpressure Axis",
-    "Ordering Guarantees Axis"
+    "Ordering Guarantees Axis",
+    "State Ownership Axis"
   ]
 }
