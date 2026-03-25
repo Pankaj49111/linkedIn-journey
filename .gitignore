@@ -10,6 +10,5 @@ __pycache__/
 .env
 
 # Local images not intended for repo
-images/*
 !images/README.md
 

@@ -392,17 +392,42 @@ def structural_precheck(post, mode):
         if not has_confession: return False, "LOW_CONFESSION_DENSITY"
     return True, None
 
-# 🔧 FORMATTING ENGINE
+# 🔧 FORMATTING ENGINE (Optimized for Scannability)
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
-    match = re.match(r'(.*?[.!?])(\s+)(.*)', text, re.DOTALL)
-    if match:
-        hook = match.group(1).strip()
-        rest = match.group(3).strip()
-        if len(hook) < 150: text = f"{hook}\n\n{rest}"
-    paragraphs = re.split(r'\n+', text)
-    formatted_paragraphs = [p.strip() for p in paragraphs if p.strip()]
-    return "\n\n".join(formatted_paragraphs)
+
+    raw_paragraphs = re.split(r'\n+', text)
+    processed_paragraphs = []
+
+    for p in raw_paragraphs:
+        p = p.strip()
+        if not p: continue
+
+        # If a block is too thick (>120 chars) and has multiple sentences, safely break it up
+        if len(p) > 120 and re.search(r'[.!?]\s+[A-Z]', p):
+            # Safe split: Keeps punctuation, splits ONLY on space before a Capital Letter
+            sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z\"\'\u201C])', p)
+
+            chunk = []
+            for s in sentences:
+                chunk.append(s.strip())
+                # Group max 2 sentences per block, or force 1 if it's a very long sentence
+                if len(chunk) == 2 or len(s) > 100:
+                    processed_paragraphs.append(" ".join(chunk))
+                    chunk = []
+            if chunk:
+                processed_paragraphs.append(" ".join(chunk))
+        else:
+            processed_paragraphs.append(p)
+
+    # Isolate the Hook (Ensure the first line stands alone for scroll-stopping)
+    if processed_paragraphs and len(processed_paragraphs[0]) > 60:
+        match = re.match(r'(.*?[.!?])\s+(.+)', processed_paragraphs[0], re.DOTALL)
+        if match:
+            processed_paragraphs[0] = match.group(1).strip()
+            processed_paragraphs.insert(1, match.group(2).strip())
+
+    return "\n\n".join(processed_paragraphs)
 
 # =============================
 # LOGIC
@@ -558,8 +583,10 @@ REVEAL SENTENCE:
 Final sentence must follow: "This is usually where the discussion stops being about [Concept] and starts revealing how someone reasons about [System Risk]."
 
 FORMATTING:
-- USE DOUBLE NEWLINES between paragraphs.
-- Keep paragraphs short (2-3 sentences max).
+- Optimize for LinkedIn mobile scrolling (lots of white space).
+- Write in highly scannable, single-sentence or two-sentence paragraphs.
+- NEVER write a paragraph with more than 2 sentences.
+- USE DOUBLE NEWLINES between every thought.
 
 OUTPUT JSON ONLY: {{ "post_text": "..." }}
 """
