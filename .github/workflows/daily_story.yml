@@ -1,8 +1,8 @@
 name: Scheduled LinkedIn Strategy
 on:
   schedule:
-    - cron: '30 3 * * 1,2,4,5'
-    - cron: '30 12 * * 1,3'
+    - cron: '30 3 * * 1,3,4'
+    - cron: '30 12 * * 0,3'
 
   workflow_dispatch:
     inputs:
@@ -41,20 +41,23 @@ jobs:
           DAY=$(date +%u)
           HOUR=$(date +%H)
           
+          WEEK=$((10#$(date +%V)))
+          IS_EVEN_WEEK=$((WEEK % 2))
+          
           RAW_INPUT="${{ inputs.manual_override }}"
           INPUT_MODE="${RAW_INPUT:-auto}"
 
-          echo "Detected Day: $DAY, Hour: $HOUR, Input: $INPUT_MODE"
+          echo "Detected Day: $DAY, Hour: $HOUR, Week: $WEEK, Even Week?: $IS_EVEN_WEEK, Input: $INPUT_MODE"
 
-          if [[ "$INPUT_MODE" == "force_interview" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "1" || "$DAY" == "5" ]]; }; then
+          if [[ "$INPUT_MODE" == "force_interview" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "3" ]] && [[ "$IS_EVEN_WEEK" -eq 0 ]]; }; then
             echo "action=run_interview" >> $GITHUB_OUTPUT
-            echo "Selected: Interview Bot"
+            echo "Selected: Interview Bot (Bi-Weekly)"
           
-          elif [[ "$INPUT_MODE" == "force_story_draft" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -ge 10 ]] && [[ "$DAY" == "1" || "$DAY" == "3" ]]; }; then
+          elif [[ "$INPUT_MODE" == "force_story_draft" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -ge 10 ]] && [[ "$DAY" == "7" || "$DAY" == "3" ]]; }; then
             echo "action=story_draft" >> $GITHUB_OUTPUT
             echo "Selected: Story Bot (Draft Mode)"
 
-          elif [[ "$INPUT_MODE" == "force_story_publish" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "2" || "$DAY" == "4" ]]; }; then
+          elif [[ "$INPUT_MODE" == "force_story_publish" ]] || { [[ "$INPUT_MODE" == "auto" ]] && [[ "$HOUR" -lt 10 ]] && [[ "$DAY" == "1" || "$DAY" == "4" ]]; }; then
             echo "action=story_publish" >> $GITHUB_OUTPUT
             echo "Selected: Story Bot (Publish Mode)"
           
