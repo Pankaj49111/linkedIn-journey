@@ -1,7 +1,0 @@
-{
-  "post_text": "Most developers treat connection pools like infinite credit cards.\n\nThey spend resources they don't actually have.\n\nLarge connection pools are a performance suicide note.\n\nEngineers equate 'available connections' with 'system capacity.' They set maxPoolSize to 100 because they fear ConnectionTimeoutException. This is a mistake. A massive pool doesn't solve slow queries; it masks them until the database collapses under the weight of context switching and disk I/O contention. You aren't adding throughput; you're adding friction.\n\nI\u2019ve seen a legacy monolith with a pool of 500 choke a high-spec RDS instance. The DB spent more time managing process overhead and semaphore contention than executing SQL. We dropped the pool to 20. Latency stabilized instantly because the DB could finally breathe and focus on execution.\n\nIf your pool size exceeds your database core count, you aren't scaling\u2014you're just building a bigger pile of technical debt. \ud83e\udde8",
-  "lesson_extracted": "Connection pools should be sized based on database hardware limits, not service demand.",
-  "meta_mode": "CONTRARIAN",
-  "meta_theme": "N/A",
-  "meta_tech": "Connection Pooling"
-}
