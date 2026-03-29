@@ -1,0 +1,7 @@
+{
+  "post_text": "I chose a fixed-size thread pool when everyone else wanted \"elastic\" scaling.\n\nIt felt like I was intentionally slowing us down. \ud83d\uded1\n\nThe team argued that we should let the pool grow to handle traffic spikes.\n\nThey pointed at the \"429 Too Many Requests\" errors as a sign of failure.\n\nI insisted on a hard limit and a small, bounded queue.\n\nIt looked like we were leaving performance on the table.\n\nTwo years later, our main database started locking up during a migration.\n\nLatency on the ingestion endpoint tripled instantly.\n\nServices with elastic pools tried to spawn thousands of threads to keep up.\n\nThey hit container memory limits and entered a recursive crash loop.\n\nOur service simply filled its queue and started rejecting new work.\n\nThe CPU stayed flat, and the JVM never broke a sweat. \ud83e\uddd8\u200d\u2642\ufe0f\n\nWe didn't have to recover because we never actually fell over.\n\nThe \"bad\" metric of rejected requests was actually our shield.\n\nWhat I learned:\n\nA system that knows when to say no is more resilient than one that tries to do everything until it dies.",
+  "lesson_extracted": "A system that knows when to say no is more resilient than one that tries to do everything until it dies.",
+  "meta_mode": "QUIET_WIN",
+  "meta_theme": "N/A",
+  "meta_tech": "Misleading Metrics"
+}
