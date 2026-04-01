@@ -1,0 +1,7 @@
+{
+  "post_text": "Stop trusting wall-clock timestamps for event ordering in distributed systems.\n\nIt is a race condition waiting to happen. \ud83d\udd52\n\nNetwork latency and clock skew turn \"first\" into \"whenever\" across a cluster.\n\nIf your logic depends on absolute time, you are building on sand.\n\n- Use partition keys to force related events into a single consumer stream for guaranteed sequence.\n\n- Implement idempotent handlers to safely ignore the inevitable duplicates and late arrivals.\n\n- Attach monotonic version numbers to entities to detect and reject stale state transitions. \ud83d\udee0\ufe0f\n\nA system that assumes order is a system that breaks under load.\n\nWe got lucky that time.",
+  "lesson_extracted": "Distributed systems require logical sequence numbers and idempotency because physical timestamps are unreliable for ordering.",
+  "meta_mode": "TACTICAL",
+  "meta_theme": "N/A",
+  "meta_tech": "Event Ordering"
+}
