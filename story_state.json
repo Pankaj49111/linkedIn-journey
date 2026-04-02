@@ -1,6 +1,6 @@
 {
   "act_index": 1,
-  "episode": 4,
+  "episode": 5,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -13,18 +13,18 @@
     "THE SILENT VICTORY"
   ],
   "last_tech": [
-    "Connection Pooling",
     "Misleading Metrics",
     "Kubernetes OOMs",
     "Connection Pooling",
-    "Misleading Metrics"
+    "Misleading Metrics",
+    "Event Ordering"
   ],
   "last_spines": [],
   "last_modes": [
-    "TACTICAL",
     "FAILURE",
     "HUMAN",
     "CONTRARIAN",
-    "QUIET_WIN"
+    "QUIET_WIN",
+    "TACTICAL"
   ]
 }
