@@ -1,0 +1,7 @@
+{
+  "post_text": "I thought a 10ms cache was the ultimate shield against a 2s database query.\n\nThe dashboard turned a beautiful, steady green, and I walked away feeling like a hero.\n\nI assumed Redis would simply hold the data until the TTL expired.\n\nI didn't account for the `allkeys-lru` policy on our shared cluster.\n\nAs other services scaled, my critical keys were silently evicted to make room for transient session data.\n\nThe system didn't crash immediately.\n\nIt waited until peak traffic to trigger a massive, synchronized cache miss.\n\nThe database didn't just slow down; it stopped breathing under the sudden connection storm. \ud83c\udf2a\ufe0f\n\nMy fix had merely compressed the failure into a single, fatal moment.\n\nThe green metrics were a lie told by a system waiting to exhale.\n\nWhat I learned:\n\nA cache is not a performance fix; it is a debt instrument that collects interest in the form of complexity and hidden failure modes.\n\nProduction remembers.",
+  "lesson_extracted": "Caching is a temporary mask for architectural debt that eventually defaults during peak load.",
+  "meta_mode": "FAILURE",
+  "meta_theme": "THE FALSE FIX",
+  "meta_tech": "Redis"
+}
