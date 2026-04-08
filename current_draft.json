@@ -1,0 +1,7 @@
+{
+  "post_text": "Backward compatibility in schemas is a slow-motion suicide pact.\n\n\ud83d\udc80\n\nStop lying to yourself about \"safe\" migrations.\n\nMost engineers obsess over zero-downtime by keeping old columns alive indefinitely.\n\nThey think they are mitigating risk.\n\nIn reality, they are building a graveyard of nullable fields and zombie logic.\n\nI\u2019ve seen \"temporary\" bridge columns survive three major version migrations.\n\nBy the time we tried to clean them up, the original intent was long forgotten.\n\nThe mapping logic became so brittle that a simple type change crashed five microservices.\n\nMaintaining two versions of the truth is a debt that compounds at 100% interest.\n\nIf you don't have a hard date to drop the old schema, you don't have a migration.\n\nYou have a mess.\n\nMost people stop thinking right here.\n\nIf you don't kill your legacy columns, they will eventually kill your system. \ud83d\udd2a",
+  "lesson_extracted": "Perpetual backward compatibility in database schemas creates unmanageable technical debt that eventually causes catastrophic system failure.",
+  "meta_mode": "CONTRARIAN",
+  "meta_theme": "N/A",
+  "meta_tech": "Schema Evolution"
+}
