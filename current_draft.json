@@ -1,0 +1,7 @@
+{
+  "post_text": "We avoided the distributed system trap by keeping our CQRS implementation boring.\n\nI insisted on using a single RDBMS with separate schemas for commands and queries.\n\nThe team wanted a shiny event-sourced architecture with Kafka and a document store.\n\nThey called my approach \"monolithic\" and \"outdated\" for a high-scale system.\n\nTwo years later, a massive marketing campaign tripled our traffic overnight.\n\nWhile our competitors struggled with eventual consistency bugs, we just added two read replicas.\n\nThe write side stayed fast because it wasn't burdened by complex joins or lock contention.\n\nWe didn't need a complex event bus to handle the load \ud83d\udcc9.\n\nThe system just needed to stop locking the write tables during heavy reporting.\n\nChoosing a boring path meant we spent that weekend sleeping instead of debugging race conditions \u2615.\n\nWhat I learned:\n\nArchitectural separation is about logical boundaries, not necessarily adding more moving parts.",
+  "lesson_extracted": "Architectural separation is about logical boundaries, not necessarily adding more moving parts.",
+  "meta_mode": "QUIET_WIN",
+  "meta_theme": "N/A",
+  "meta_tech": "CQRS"
+}
