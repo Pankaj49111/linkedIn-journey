@@ -1,0 +1,7 @@
+{
+  "post_text": "Oversized connection pools are a silent killer of database performance.\n\nMost engineers treat pool size as a \"more is better\" slider. \ud83d\udcc9\n\nA connection pool isn't a buffer for slow queries; it's a throttle for your database's physical limits.\n\n- Set `maximumPoolSize` based on CPU cores and disk I/O rather than your peak request volume.\n\n- Monitor `ConnectionAcquisitionTime` to detect pool exhaustion before your application starts throwing 500s.\n\n- Implement a strict `connectionTimeout` that is lower than your load balancer's timeout to prevent thread pile-ups.\n\nLarge pools increase context switching and lock contention on the database side. \ud83d\udee0\ufe0f\n\nKeep your pool lean to keep your latency predictable.\n\nA small, saturated pool is always faster than a large, stalled one.\n\nEfficiency comes from limiting concurrency to match the physical capacity of your storage engine.",
+  "lesson_extracted": "Optimize connection pools based on hardware constraints rather than request volume to prevent database thrashing.",
+  "meta_mode": "TACTICAL",
+  "meta_theme": "N/A",
+  "meta_tech": "Connection Pooling"
+}
