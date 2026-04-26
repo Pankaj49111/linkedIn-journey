@@ -1,7 +1,7 @@
 {
-  "post_text": "Distributed systems lack a global clock.\n\nRelying on wall-clock timestamps for event ordering is a fast track to data corruption. \ud83d\udd52\n\nUse partition keys to force related events into the same consumer thread.\n\nThis ensures sequential processing at the infrastructure level before your code even touches the payload.\n\nImplement idempotent consumers with version-based fencing to ignore stale updates.\n\nA late \"Update\" event must never overwrite a newer \"Delete\" state in your database.\n\nYour business logic must reject any event with a version lower than the current state recorded in the persistence layer.\n\nReplace system timestamps with sequence numbers or vector clocks to define absolute order.\n\nLogical clocks are the only way to guarantee causality across distributed nodes.\n\nClock drift is inevitable; your architecture must be immune to it. \ud83d\udee0\ufe0f",
-  "lesson_extracted": "Rely on logical sequence numbers and partitioning rather than system timestamps to guarantee event ordering in distributed architectures.",
+  "post_text": "Kubernetes kills your Java process before the JVM even knows it's in trouble.\n\nYou aren't just managing heap; you're managing the container's patience. \ud83d\udee1\ufe0f\n\nMost OOMKills happen because engineers treat -Xmx as the only memory limit that matters.\n\nSet MaxRAMPercentage to 75% to leave breathing room for Metaspace, Code Cache, and thread stacks.\n\nMonitor container_memory_working_set_bytes instead of JVM heap metrics to see what the kernel actually sees.\n\nMatch InitialRAMPercentage to your max to prevent the OS from reclaiming memory during a sudden heap expansion. \ud83d\ude80",
+  "lesson_extracted": "Prevent OOMKills by accounting for non-heap overhead and monitoring container-level metrics instead of just JVM internals.",
   "meta_mode": "TACTICAL",
   "meta_theme": "N/A",
-  "meta_tech": "Event Ordering"
+  "meta_tech": "Kubernetes OOMs"
 }
