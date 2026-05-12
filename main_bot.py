@@ -624,7 +624,7 @@ def build_prompt_by_mode(mode, act, episode, theme, tech, prev_lessons, spine, a
         3. A future moment where it quietly saved the team.
         4. Reflection without grand moralizing.
         
-        Tone: Calm, grounded.
+        MANDATORY TONE: Calm, grounded. You MUST express internal doubt or anxiety before the system proves you right. Do not sound like a flawless hero. Be humble.
         End with: "What I learned:" followed by one sentence.
         """
 
@@ -667,6 +667,8 @@ def build_prompt_by_mode(mode, act, episode, theme, tech, prev_lessons, spine, a
         Reflective tone. NO moral header.
         """
 
+    emoji_rule = "STRICTLY ZERO emojis." if mode in ["FAILURE", "CONTRARIAN", "QUIET_WIN"] else "Emojis: Max 1."
+
     return f"""
 Role: Senior Backend Engineer (Java/JVM).
 CONTEXT: {act['name']} (Ep {episode})
@@ -679,14 +681,13 @@ PREVIOUSLY: {prev_lessons}
 STYLE RULES:
 - Active voice.
 - First 2 lines = hook.
-- Emojis: Max 2.
+- {emoji_rule}
 - No "tips and tricks". Lived experience only.
 
 FORMATTING:
-- Optimize for LinkedIn mobile scrolling (lots of white space).
-- Write in highly scannable, single-sentence or two-sentence paragraphs.
-- NEVER write a paragraph with more than 2 sentences.
-- USE DOUBLE NEWLINES between every thought.
+- Combine related sentences into tight, 2-to-3 sentence paragraphs.
+- DO NOT write single-sentence paragraphs unless it is the opening hook or the final line.
+- USE DOUBLE NEWLINES between every paragraph.
 
 OUTPUT JSON ONLY:
 {{

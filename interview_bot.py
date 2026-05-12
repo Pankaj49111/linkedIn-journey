@@ -44,6 +44,11 @@ WRITING_MODES = {
 }
 
 # =============================
+# 🧠 EMOTIONAL MUTEX LAYERS
+# =============================
+EMOTIONAL_LAYERS = ["DRIFT", "HOOK", "BREAKER", "NONE"]
+
+# =============================
 # 🌫️ IDENTITY LOOP (Voice Legacy)
 # =============================
 HUMAN_LINES = [
@@ -97,7 +102,7 @@ ENGAGEMENT_HOOKS = [
     "This sounds correct in theory."
 ]
 
-# 🧨 BELIEF BREAKERS (Cognitive Disruption) - NEW
+# 🧨 BELIEF BREAKERS (Cognitive Disruption)
 BELIEF_BREAKERS = [
     "Scaling didn't fix it.",
     "The dashboard was lying.",
@@ -116,8 +121,8 @@ CURIOSITY_ENDINGS = [
     "Some lessons don’t resolve.",
     "That wasn’t the end.",
     "We got lucky that time.",
-    "That caused a rollback.",      # Harsher
-    "Support tickets followed."    # Harsher
+    "That caused a rollback.",
+    "Support tickets followed."
 ]
 
 CONFESSION_PHRASES = [
@@ -327,32 +332,27 @@ def apply_human_drift(text):
 # 🔥 ATTENTION LOOP (Engagement)
 # =============================
 def apply_engagement_hooks(text):
-    if random.random() < 0.35:
-        hook = random.choice(ENGAGEMENT_HOOKS)
-        paragraphs = text.split('\n\n')
-        if len(paragraphs) > 2:
-            paragraphs.insert(-1, hook)
-            text = "\n\n".join(paragraphs)
-            safe_print(f"🔥 Applied Engagement Hook: '{hook}'")
+    hook = random.choice(ENGAGEMENT_HOOKS)
+    paragraphs = text.split('\n\n')
+    if len(paragraphs) > 2:
+        paragraphs.insert(-1, hook)
+        text = "\n\n".join(paragraphs)
+        safe_print(f"🔥 Applied Engagement Hook: '{hook}'")
     return text
 
 def apply_belief_break(text):
-    # 🧨 BELIEF BREAKER (40% chance) - Cognitive Disruption
-    if random.random() < 0.40:
-        breaker = random.choice(BELIEF_BREAKERS)
-        paragraphs = text.split("\n\n")
-        # Insert early (after hook)
-        if len(paragraphs) > 2:
-            paragraphs.insert(1, breaker)
-            text = "\n\n".join(paragraphs)
-            safe_print(f"🧨 Applied Belief Break: '{breaker}'")
+    breaker = random.choice(BELIEF_BREAKERS)
+    paragraphs = text.split("\n\n")
+    if len(paragraphs) > 2:
+        paragraphs.insert(1, breaker)
+        text = "\n\n".join(paragraphs)
+        safe_print(f"🧨 Applied Belief Break: '{breaker}'")
     return text
 
 def apply_curiosity_gap(text):
-    if random.random() < 0.30:
-        ending = random.choice(CURIOSITY_ENDINGS)
-        text += "\n\n" + ending
-        safe_print(f"🧲 Applied Curiosity Gap: '{ending}'")
+    ending = random.choice(CURIOSITY_ENDINGS)
+    text += "\n\n" + ending
+    safe_print(f"🧲 Applied Curiosity Gap: '{ending}'")
     return text
 
 # 🔧 API RETRY HANDLER
@@ -392,7 +392,7 @@ def structural_precheck(post, mode):
         if not has_confession: return False, "LOW_CONFESSION_DENSITY"
     return True, None
 
-# 🔧 FORMATTING ENGINE (Optimized for Scannability)
+# 🔧 2. FORMATTING ENGINE (Optimized for Scannability)
 def format_for_linkedin(text):
     text = text.replace('\r\n', '\n').strip()
 
@@ -545,7 +545,7 @@ def build_prompt(category, topic_obj, lens, posture, use_series_marker, use_earl
         mode_block = """
         HYBRID MODE:
         - Start by observing a candidate's answer pattern.
-        - Halfway through, pivot: "This reminds me of a production incident I caused."
+        - Halfway through, pivot smoothly. Use your past failure to EXPLAIN why you judge the candidate this way (e.g., "That outage is exactly why I wait for candidates to mention..."). Do not make the transition abrupt.
         - Finish the post by briefly describing your own failure that creates your empathy for this gap.
         """
 
@@ -563,7 +563,7 @@ CONTEXT:
 
 CONSTRAINTS:
 1. JVM ONLY. No Node/Go/Rust.
-2. NO EMOJIS.
+2. STRICTLY ZERO emojis.
 3. NO "You should" / "Always" / "Never". (Anti-Advice Rule)
 4. NO "Question:" or "Answer:" labels. (Anti-Q&A Rule)
 5. DO NOT name products (WhatsApp, Uber). Describe behavior.
@@ -583,10 +583,9 @@ REVEAL SENTENCE:
 Final sentence must follow: "This is usually where the discussion stops being about [Concept] and starts revealing how someone reasons about [System Risk]."
 
 FORMATTING:
-- Optimize for LinkedIn mobile scrolling (lots of white space).
-- Write in highly scannable, single-sentence or two-sentence paragraphs.
-- NEVER write a paragraph with more than 2 sentences.
-- USE DOUBLE NEWLINES between every thought.
+- Combine related sentences into tight, 2-to-3 sentence paragraphs.
+- DO NOT write single-sentence paragraphs unless it is the opening hook or the final line.
+- USE DOUBLE NEWLINES between every paragraph.
 
 OUTPUT JSON ONLY: {{ "post_text": "..." }}
 """
@@ -609,11 +608,6 @@ def generate_with_review(client, base_prompt, context_tuple, mode):
             response = generate_safe(client, current_prompt, temperature=temp)
             content = json.loads(response.text)
             post = clean_text(content.get("post_text", ""))
-
-            # ✅ UNRESOLVED ENDING (15% chance)
-            if random.random() < 0.15:
-                if post.endswith("."): post = post[:-1]
-                safe_print("🌫️ Applied Unresolved Ending")
 
             content["post_text"] = post
             last_content = content
@@ -685,12 +679,21 @@ def run_automation(dry_run=False):
     final_content = generate_with_review(client, base_prompt, (category, subtopic), mode)
     post_text = final_content["post_text"]
 
-    # APPLY LAYERS
-    post_text = apply_human_drift(post_text)      # Identity Loop
-    post_text = apply_engagement_hooks(post_text) # Attention Loop
-    post_text = apply_belief_break(post_text)     # Belief Disruption (New)
-    post_text = apply_curiosity_gap(post_text)    # Attention Loop
+    # 🛑 APPLY LAYERS (Emotional Mutex)
+    emotion = random.choice(EMOTIONAL_LAYERS)
+
+    if emotion == "DRIFT":
+        post_text = apply_human_drift(post_text)
+    elif emotion == "HOOK":
+        post_text = apply_engagement_hooks(post_text)
+    elif emotion == "BREAKER":
+        post_text = apply_belief_break(post_text)
+
     post_text = format_for_linkedin(post_text)    # Formatting
+
+    # 🛑 Apply Echo ONLY if no other emotion triggered
+    if emotion == "NONE":
+        post_text = apply_curiosity_gap(post_text)
 
     safe_print("✅ Content Generated:")
     safe_print(post_text)
