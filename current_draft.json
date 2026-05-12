@@ -1,7 +1,0 @@
-{
-  "post_text": "Stop measuring uptime; start measuring user pain. \ud83d\udcc9\n\nSLOs are not just numbers for a dashboard.\n\nThey are the contract between engineering and product that prevents team burnout.\n\n- Define SLIs based on the \"Golden Signals\"\u2014latency, traffic, errors, and saturation\u2014rather than vanity metrics like raw CPU usage.\n\n- Use Error Budgets to dictate release velocity. If the budget is spent, feature work stops and reliability work begins immediately.\n\n- Calculate SLOs over a rolling 28-day window to smooth out transient spikes while maintaining a clear view of long-term stability.\n\nA 99.9% target is a strategic choice to allow 43 minutes of downtime per month for experimentation. \ud83d\udee0\ufe0f\n\nIf you don't define what \"broken\" looks like, your users will do it for you.\n\nReliability is the most important feature you will ever ship.\n\nMeasure what matters to the human at the other end of the request.\n\nStop guessing and start quantifying the threshold of failure.",
-  "lesson_extracted": "SLOs transform reliability from a vague goal into a measurable contract that balances innovation with system stability.",
-  "meta_mode": "TACTICAL",
-  "meta_theme": "N/A",
-  "meta_tech": "SLIs/SLOs"
-}
