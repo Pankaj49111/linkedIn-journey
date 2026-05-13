@@ -11,15 +11,16 @@
     "Backfills causing production brownouts",
     "Distributed locks: The Clock Skew problem",
     "Eventual consistency leaking into user workflows",
-    "Eviction policies silently killing business logic"
+    "Eviction policies silently killing business logic",
+    "Search indexes lagging behind truth"
   ],
   "last_categories": [
-    "redis",
     "nosql_misuse",
-    "redis"
+    "redis",
+    "derived_stores"
   ],
   "last_axes": [
-    "State Ownership Axis",
-    "Failure Detection Axis"
+    "Failure Detection Axis",
+    "Visibility vs Reality Axis"
   ]
 }
