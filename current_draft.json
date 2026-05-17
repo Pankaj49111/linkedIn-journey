@@ -1,0 +1,7 @@
+{
+  "post_text": "Cache invalidation is a design failure, not a strategy.\n\nMost systems die because they try to be too smart.\n\nEngineers treat stale data as a bug rather than a fundamental property of distributed state. They obsess over event-driven purges to maintain the illusion of consistency, building complex logic that introduces race conditions and hides underlying architectural fragility.\n\nThis complexity often turns a simple performance optimization into a primary source of system instability that creates more debugging friction than the original latency.\n\nI watched a \"real-time\" invalidation service trigger a cascading failure during a network partition. The overhead of state management and retry storms choked the process's internal headroom, leaving no room for actual processing when the system hit its hard ceiling.\n\nThe system spent more energy trying to forget data than it spent serving the actual users.\n\nIf you cannot survive a stale read, you should not be caching in the first place.",
+  "lesson_extracted": "Complex invalidation logic creates more failure modes than it solves.",
+  "meta_mode": "CONTRARIAN",
+  "meta_theme": "N/A",
+  "meta_tech": "Cache Invalidation"
+}
