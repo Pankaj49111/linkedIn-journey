@@ -1,6 +1,6 @@
 {
-  "act_index": 1,
-  "episode": 10,
+  "act_index": 2,
+  "episode": 1,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -16,18 +16,18 @@
     "THE FALSE FIX"
   ],
   "last_tech": [
-    "Event Ordering",
     "Redis",
     "Schema Evolution",
     "CQRS",
-    "SLIs/SLOs"
+    "SLIs/SLOs",
+    "Cache Invalidation"
   ],
   "last_spines": [],
   "last_modes": [
-    "FAILURE",
     "CONTRARIAN",
     "QUIET_WIN",
     "TACTICAL",
-    "HUMAN"
+    "HUMAN",
+    "CONTRARIAN"
   ]
 }
