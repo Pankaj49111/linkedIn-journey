@@ -1,0 +1,7 @@
+{
+  "post_text": "I assumed separating reads from writes with CQRS would instantly cure our database lock contention.\n\nI split our monolithic transaction service into two clean JVM deployments, routing queries to a read-replica and commands to the primary database.\n\nThe deployment went flawlessly, and our primary database CPU dropped to near zero. I felt an immediate rush of triumph as the dashboards glowed green, but a hollow feeling quickly replaced it.\n\nThe silence was deceptive.\n\nThe read-replica began lagging by minutes under the heavy write load. Users saw stale balances, panicked, and initiated duplicate withdrawals that our read-model allowed because it did not know the funds were already gone.\n\nWe lost thousands of dollars in minutes before we could roll back the deployment.\n\nWhat I learned:\n\nEventual consistency is not just a technical trade-off; it is a business risk that will break your system if your domain cannot tolerate stale data.",
+  "lesson_extracted": "Eventual consistency is a business risk, not just a technical trade-off, and it will fail if your domain cannot tolerate stale data.",
+  "meta_mode": "FAILURE",
+  "meta_theme": "THE BORING STACK",
+  "meta_tech": "CQRS"
+}
