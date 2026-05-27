@@ -12,15 +12,16 @@
     "Distributed locks: The Clock Skew problem",
     "Eventual consistency leaking into user workflows",
     "Eviction policies silently killing business logic",
-    "Search indexes lagging behind truth"
+    "Search indexes lagging behind truth",
+    "The myth of 'Exactly Once' in distributed systems"
   ],
   "last_categories": [
-    "nosql_misuse",
     "redis",
-    "derived_stores"
+    "derived_stores",
+    "kafka"
   ],
   "last_axes": [
-    "Failure Detection Axis",
-    "Visibility vs Reality Axis"
+    "Visibility vs Reality Axis",
+    "Human Assumption Axis"
   ]
 }
