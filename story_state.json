@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 1,
+  "episode": 2,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -8,26 +8,28 @@
     "A container limit is a hard ceiling for the entire process, not just your heap; always leave a 25% buffer for the JVM's internal tax.",
     "A system that knows when to say no is more resilient than one that tries to do everything until it dies.",
     "Caching is a temporary mask for architectural debt that eventually defaults during peak load.",
-    "Architectural separation is about logical boundaries, not necessarily adding more moving parts."
+    "Architectural separation is about logical boundaries, not necessarily adding more moving parts.",
+    "Idempotency must be guaranteed by hard database constraints, not transient cache layers that can silently evict keys under pressure."
   ],
   "last_themes": [
     "THE OWNERSHIP GAP",
     "THE SILENT VICTORY",
-    "THE FALSE FIX"
+    "THE FALSE FIX",
+    "THE ARCHITECTURAL TRAP"
   ],
   "last_tech": [
-    "Redis",
     "Schema Evolution",
     "CQRS",
     "SLIs/SLOs",
-    "Cache Invalidation"
+    "Cache Invalidation",
+    "Idempotency"
   ],
   "last_spines": [],
   "last_modes": [
-    "CONTRARIAN",
     "QUIET_WIN",
     "TACTICAL",
     "HUMAN",
-    "CONTRARIAN"
+    "CONTRARIAN",
+    "FAILURE"
   ]
 }

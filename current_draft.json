@@ -1,7 +1,0 @@
-{
-  "post_text": "I assumed a unique transaction ID in the header was enough to guarantee idempotency.\n\nMy confidence grew as the green metrics on our new payment gateway deployment remained perfectly flat.\n\nWe deployed the deduplication filter using a fast Redis cache to intercept incoming requests. The dashboards showed zero duplicate transactions, and CPU usage sat comfortably at ten percent.\n\nYet, a nagging feeling lingered because our database write volume did not match the external gateway API logs.\n\nThree days later, finance flagged a massive discrepancy in reconciliation. The Redis cache had silently evicted keys under memory pressure, causing the filter to treat retried, timed-out requests as brand new transactions.\n\nWe had double-charged premium customers over forty thousand dollars because our fallback was to allow the write when the cache missed.\n\nWhat I learned:\n\nIdempotency is a state guarantee, not a transient caching trick.",
-  "lesson_extracted": "Idempotency must be guaranteed by hard database constraints, not transient cache layers that can silently evict keys under pressure.",
-  "meta_mode": "FAILURE",
-  "meta_theme": "THE ARCHITECTURAL TRAP",
-  "meta_tech": "Idempotency"
-}
