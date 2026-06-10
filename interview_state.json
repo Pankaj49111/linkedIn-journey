@@ -13,15 +13,16 @@
     "Eventual consistency leaking into user workflows",
     "Eviction policies silently killing business logic",
     "Search indexes lagging behind truth",
-    "The myth of 'Exactly Once' in distributed systems"
+    "The myth of 'Exactly Once' in distributed systems",
+    "Eventual consistency leaking into user workflows"
   ],
   "last_categories": [
-    "redis",
     "derived_stores",
-    "kafka"
+    "kafka",
+    "nosql_misuse"
   ],
   "last_axes": [
-    "Visibility vs Reality Axis",
-    "Human Assumption Axis"
+    "Human Assumption Axis",
+    "State Ownership Axis"
   ]
 }
