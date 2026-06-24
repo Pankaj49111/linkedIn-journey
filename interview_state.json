@@ -1,6 +1,5 @@
 {
   "last_topics": [
-    "Consumer lag: Latency vs Throughput trade-off",
     "Dual writes without atomicity",
     "JVM Warm-up: Why autoscaling is slow",
     "Ordering guarantees vs Consumer Group rebalances",
@@ -14,15 +13,16 @@
     "Eviction policies silently killing business logic",
     "Search indexes lagging behind truth",
     "The myth of 'Exactly Once' in distributed systems",
-    "Eventual consistency leaking into user workflows"
+    "Eventual consistency leaking into user workflows",
+    "Long transactions holding invisible locks"
   ],
   "last_categories": [
-    "derived_stores",
     "kafka",
-    "nosql_misuse"
+    "nosql_misuse",
+    "relational_db"
   ],
   "last_axes": [
-    "Human Assumption Axis",
-    "State Ownership Axis"
+    "State Ownership Axis",
+    "Resource Contention Axis"
   ]
 }
