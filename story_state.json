@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 2,
+  "episode": 3,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -9,7 +9,8 @@
     "A system that knows when to say no is more resilient than one that tries to do everything until it dies.",
     "Caching is a temporary mask for architectural debt that eventually defaults during peak load.",
     "Architectural separation is about logical boundaries, not necessarily adding more moving parts.",
-    "Idempotency must be guaranteed by hard database constraints, not transient cache layers that can silently evict keys under pressure."
+    "Idempotency must be guaranteed by hard database constraints, not transient cache layers that can silently evict keys under pressure.",
+    "Strict, boring API contracts protect systems from human drift far better than any post-incident postmortem ever can."
   ],
   "last_themes": [
     "THE OWNERSHIP GAP",
@@ -18,18 +19,18 @@
     "THE ARCHITECTURAL TRAP"
   ],
   "last_tech": [
-    "Schema Evolution",
     "CQRS",
     "SLIs/SLOs",
     "Cache Invalidation",
-    "Idempotency"
+    "Idempotency",
+    "API Contracts"
   ],
   "last_spines": [],
   "last_modes": [
-    "QUIET_WIN",
     "TACTICAL",
     "HUMAN",
     "CONTRARIAN",
-    "FAILURE"
+    "FAILURE",
+    "QUIET_WIN"
   ]
 }
