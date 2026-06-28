@@ -1,0 +1,7 @@
+{
+  "post_text": "Your 99th percentile latency dashboard is lying to you while your database quietly drowns.\n\nAverage and percentile metrics hide the catastrophic micro-outages that kill throughput under load.\n\nSystem health metrics often mask structural decay until a complete cascade occurs. Relying on aggregated dashboards creates a false sense of security.\n\nAverage GC pause times look pristine while stop-the-world events target high-throughput threads. Track maximum pause duration and allocation spikes rather than smoothed hourly averages.\n\nThis prevents silent queue build-ups.\n\nLow CPU utilization often hides thread pool starvation on critical executor services. When synchronous I/O blocks worker threads, the CPU sits idle while requests time out.\n\nMonitor active thread counts directly.\n\nA high HTTP success rate is meaningless if the failing fraction represents your payment capture endpoint.\n\nGroup metrics by business criticality instead of aggregating all API traffic together. This exposes high-value failures.\n\nStop measuring system averages and start monitoring worst-case execution paths. \ud83d\uded1",
+  "lesson_extracted": "Aggregated metrics and averages mask critical, localized system failures under high load.",
+  "meta_mode": "TACTICAL",
+  "meta_theme": "N/A",
+  "meta_tech": "Misleading Metrics"
+}
