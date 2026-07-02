@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 3,
+  "episode": 4,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -27,10 +27,10 @@
   ],
   "last_spines": [],
   "last_modes": [
-    "TACTICAL",
     "HUMAN",
     "CONTRARIAN",
     "FAILURE",
-    "QUIET_WIN"
+    "QUIET_WIN",
+    "HUMAN"
   ]
 }
