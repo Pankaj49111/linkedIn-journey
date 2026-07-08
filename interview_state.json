@@ -1,6 +1,5 @@
 {
   "last_topics": [
-    "Dual writes without atomicity",
     "JVM Warm-up: Why autoscaling is slow",
     "Ordering guarantees vs Consumer Group rebalances",
     "Search indexes lagging behind truth",
@@ -14,15 +13,16 @@
     "Search indexes lagging behind truth",
     "The myth of 'Exactly Once' in distributed systems",
     "Eventual consistency leaking into user workflows",
-    "Long transactions holding invisible locks"
+    "Long transactions holding invisible locks",
+    "Search indexes lagging behind truth"
   ],
   "last_categories": [
-    "kafka",
     "nosql_misuse",
-    "relational_db"
+    "relational_db",
+    "derived_stores"
   ],
   "last_axes": [
-    "State Ownership Axis",
-    "Resource Contention Axis"
+    "Resource Contention Axis",
+    "Visibility vs Reality Axis"
   ]
 }
