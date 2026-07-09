@@ -1,7 +1,0 @@
-{
-  "post_text": "Kubernetes memory limits are a self-inflicted denial of service.\n\nMost developers cargo-cult container resource limits because they fear noisy neighbors, yet they completely fail to understand JVM off-heap dynamics.\n\nThey configure artificially tight limits and watch cgroups brutally murder perfectly healthy JVMs during minor garbage collection spikes, thread creation, or class-loading bursts.\n\nYou are actively trading a temporary, self-healing performance degradation for an immediate, catastrophic hard crash under peak load.\n\nIn our high-throughput payment gateway, removing memory limits entirely and relying solely on memory requests and JVM native tracking cut unexpected restarts to zero.\n\nThe underlying OS page cache and JVM ergonomics managed host memory far more efficiently than the arbitrary, static thresholds configured by YAML-obsessed platform engineers.\n\nStop letting Kubernetes execute your JVMs for doing their job.\n\nI still think about that.",
-  "lesson_extracted": "Relying on Kubernetes memory limits for JVMs causes unnecessary hard crashes; use memory requests and JVM native ergonomics instead.",
-  "meta_mode": "CONTRARIAN",
-  "meta_theme": "N/A",
-  "meta_tech": "Kubernetes OOMs"
-}

@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 4,
+  "episode": 5,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -19,18 +19,18 @@
     "THE ARCHITECTURAL TRAP"
   ],
   "last_tech": [
-    "CQRS",
     "SLIs/SLOs",
     "Cache Invalidation",
     "Idempotency",
-    "API Contracts"
+    "API Contracts",
+    "Kubernetes OOMs"
   ],
   "last_spines": [],
   "last_modes": [
-    "HUMAN",
     "CONTRARIAN",
     "FAILURE",
     "QUIET_WIN",
-    "HUMAN"
+    "HUMAN",
+    "CONTRARIAN"
   ]
 }
