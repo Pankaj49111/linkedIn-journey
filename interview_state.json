@@ -1,6 +1,5 @@
 {
   "last_topics": [
-    "JVM Warm-up: Why autoscaling is slow",
     "Ordering guarantees vs Consumer Group rebalances",
     "Search indexes lagging behind truth",
     "Using Redis as a primary database (The Persistence Trap)",
@@ -14,15 +13,16 @@
     "The myth of 'Exactly Once' in distributed systems",
     "Eventual consistency leaking into user workflows",
     "Long transactions holding invisible locks",
-    "Search indexes lagging behind truth"
+    "Search indexes lagging behind truth",
+    "Eviction policies silently killing business logic"
   ],
   "last_categories": [
-    "nosql_misuse",
     "relational_db",
-    "derived_stores"
+    "derived_stores",
+    "redis"
   ],
   "last_axes": [
-    "Resource Contention Axis",
-    "Visibility vs Reality Axis"
+    "Visibility vs Reality Axis",
+    "Failure Detection Axis"
   ]
 }
