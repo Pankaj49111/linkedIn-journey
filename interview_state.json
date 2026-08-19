@@ -1,6 +1,5 @@
 {
   "last_topics": [
-    "Ordering guarantees vs Consumer Group rebalances",
     "Search indexes lagging behind truth",
     "Using Redis as a primary database (The Persistence Trap)",
     "Hot partitions created by innocent keys",
@@ -14,15 +13,16 @@
     "Eventual consistency leaking into user workflows",
     "Long transactions holding invisible locks",
     "Search indexes lagging behind truth",
-    "Eviction policies silently killing business logic"
+    "Eviction policies silently killing business logic",
+    "Thread Pool Exhaustion vs CPU saturation"
   ],
   "last_categories": [
-    "relational_db",
     "derived_stores",
-    "redis"
+    "redis",
+    "jvm_mechanics"
   ],
   "last_axes": [
-    "Visibility vs Reality Axis",
-    "Failure Detection Axis"
+    "Failure Detection Axis",
+    "Resource Contention Axis"
   ]
 }
