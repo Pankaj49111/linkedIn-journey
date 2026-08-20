@@ -1,7 +1,0 @@
-{
-  "post_text": "I thought adding a single column with a default value was a zero-downtime operation.\n\nI was wrong, and I brought down our primary transactional cluster in under thirty seconds.\n\nI pushed a migration script to add a non-nullable status column to our largest ledger table during peak hours.\n\nThe Java application code was fully backward-compatible, and our staging environment had applied the change without a flicker.\n\nThe moment the DDL executed, connection pools across fifteen Spring Boot instances instantly saturated.\n\nThe database acquired an exclusive table lock to validate default values across millions of live rows, queuing incoming writes until thread pools exhausted and health checks collapsed.\n\nI stared at the cascade of timeouts, realizing that logical backward compatibility means nothing if physical storage locks the engine to enforce it.\n\nSchema evolution must be decoupled into distinct phases of adding nullable fields, backfilling asynchronously, and applying constraints last.\n\nWhat I learned:\n\nA database schema cannot evolve faster than concurrent traffic allows; either you stage your structural changes in decoupled phases, or your table locks will take down the platform.",
-  "lesson_extracted": "Database schema evolution must be decoupled into multi-phase, non-locking rollouts to avoid catastrophic table locks under concurrent production load.",
-  "meta_mode": "FAILURE",
-  "meta_theme": "THE EUREKA MOMENT",
-  "meta_tech": "Schema Evolution"
-}
