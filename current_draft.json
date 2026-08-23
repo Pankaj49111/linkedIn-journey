@@ -1,0 +1,7 @@
+{
+  "post_text": "If an alert fires and requires no immediate human action, it is noise.\n\nWaking an on-call engineer for a self-healing JVM transient guarantees they will eventually ignore genuine production outages.\n\nEvery un-actionable notification erodes operational discipline. Fix alert fatigue with three strict rules:\n\n- Alert on customer-facing symptoms, not internal causes: Page on elevated HTTP 5xx rates or breached latency SLOs, not transient GC pauses or CPU blips.\n\n- Enforce an automatic kill switch on flapping monitors: If an alert self-resolves within five minutes repeatedly, downgrade it immediately to a backlog ticket.\n\n- Mandate an explicit mitigation runbook for every page: If the documented operational response is 'wait and see,' delete the alert definition permanently. \ud83d\udea8",
+  "lesson_extracted": "Alerts must trigger solely on actionable, user-facing degradation rather than transient internal metrics that self-heal.",
+  "meta_mode": "TACTICAL",
+  "meta_theme": "N/A",
+  "meta_tech": "Alert Fatigue"
+}
