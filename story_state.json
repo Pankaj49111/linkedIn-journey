@@ -1,6 +1,6 @@
 {
   "act_index": 2,
-  "episode": 6,
+  "episode": 7,
   "previous_lessons": [
     "Boring contracts prevent exciting failures.",
     "Legacy migrations fail when you treat the code as the source of truth while ignoring the undocumented side effects in the database.",
@@ -21,18 +21,18 @@
     "THE EUREKA MOMENT"
   ],
   "last_tech": [
-    "Cache Invalidation",
     "Idempotency",
     "API Contracts",
     "Kubernetes OOMs",
-    "Schema Evolution"
+    "Schema Evolution",
+    "Alert Fatigue"
   ],
   "last_spines": [],
   "last_modes": [
-    "FAILURE",
     "QUIET_WIN",
     "HUMAN",
     "CONTRARIAN",
-    "FAILURE"
+    "FAILURE",
+    "TACTICAL"
   ]
 }
