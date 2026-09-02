@@ -1,0 +1,7 @@
+{
+  "post_text": "Setting equal memory requests and limits on JVM pods always looks like burning company money.\n\nIt flies directly in the face of Kubernetes resource elasticity.\n\nThree years ago, I locked our Java workloads into a strict 1:1 request-to-limit ratio and capped max heap at sixty percent of that ceiling.\n\nThe platform team pushed back hard against the wasted headroom, and I spent weeks sweating over whether I had needlessly inflated our cloud bill out of pure paranoia.\n\nThe payoff arrived quietly during an unannounced upstream catalog re-index. Bursts of compressed network payloads triggered off-heap spikes across the cluster, knocking down neighbor pods as the Linux OOM killer woke up to reclaim overcommitted memory.\n\nOur pods absorbed the native memory churn inside their reserved buffer, never breached their cgroups, and processed the backlog without dropping a single connection.\n\nNo one celebrated, and no incident ticket was ever filed. We had simply respected the JVM runtime reality instead of pretending container memory limits were flexible suggestions.\n\nWhat I learned:\n\nPredictable overhead is always cheaper than the operational chaos of an overcommitted cluster.",
+  "lesson_extracted": "Predictable overhead is always cheaper than the operational chaos of an overcommitted cluster.",
+  "meta_mode": "QUIET_WIN",
+  "meta_theme": "N/A",
+  "meta_tech": "Kubernetes OOMs"
+}
